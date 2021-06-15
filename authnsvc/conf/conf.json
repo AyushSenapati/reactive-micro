@@ -1,0 +1,22 @@
+{
+    "env": "dev",
+    "svc_name": "reactive-micro-authn-svc",
+    "nats_url": "localhost:4222",
+    "authzsvc_url": "http://localhost:8003/v1/authzsvc/policies",
+    "postgres": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "postgres",
+        "password": "postgres",
+        "db": "authn",
+        "sslmode": "disable"
+    },
+    "redis": {
+        "addr": "localhost:6379",
+        "password": "",
+        "db": 10
+    },
+    "auth": {
+        "secret_key": "topscretkey"
+    }
+}
