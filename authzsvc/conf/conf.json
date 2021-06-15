@@ -1,0 +1,14 @@
+{
+    "env": "dev",
+    "svc_name": "reactive-micro-authz-svc",
+    "mongo_uri": "mongodb://localhost:27017/authzdb?w=majority",
+    "nats_url": "localhost:4222",
+    "redis": {
+        "addr": "localhost:6379",
+        "password": "",
+        "db": 12
+    },
+    "auth": {
+        "secret_key": "topscretkey"
+    }
+}
