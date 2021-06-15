@@ -1,0 +1,22 @@
+{
+    "env": "dev",
+    "svc_name": "reactive-micro-order-svc",
+    "nats_url": "localhost:4222",
+    "authzsvc_url": "http://localhost:8083/v1/authzsvc/policies",
+    "postgres": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "postgres",
+        "password": "postgres",
+        "db": "ordersvc",
+        "sslmode": "disable"
+    },
+    "redis": {
+        "addr": "localhost:6379",
+        "password": "",
+        "db": 11
+    },
+    "auth": {
+        "secret_key": "topscretkey"
+    }
+}
