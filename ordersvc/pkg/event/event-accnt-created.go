@@ -5,7 +5,7 @@ const EventAccountCreated EventName = "EventAccountCreated"
 // register the event to the registry
 func init() {
 	Registry.register(EventAccountCreated, EventInfo{
-		ReqChan: "accntsvc.EventAccountCreated",
+		ReqChan: "authnsvc.EventAccountCreated",
 		isValidPayload: func(i interface{}) bool {
 			_, ok := i.(EventAccountCreatedPayload)
 			return ok
