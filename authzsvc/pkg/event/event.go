@@ -10,10 +10,6 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// EventSource would be set as the source
-// of all the events fired from this service
-var EventSource = svcconf.C.SVCName
-
 type EventName string
 
 // Registry is the service EventRegistry where all the
@@ -95,7 +91,7 @@ func getEventMeta(ctx context.Context, name string) EventMeta {
 	}
 	return EventMeta{
 		Version:   "1.0",
-		Source:    EventSource,
+		Source:    svcconf.C.SVCName,
 		Time:      time.Now(),
 		Name:      name,
 		ID:        uuid.New().String(),
