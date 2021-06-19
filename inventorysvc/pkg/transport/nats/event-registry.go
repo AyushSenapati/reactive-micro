@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	svcevent "github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/event"
+	pe "github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/lib/policy-enforcer"
 	"github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/service"
 	"github.com/nats-io/nats.go"
 )
@@ -18,6 +19,10 @@ type EventHandlerFuncs struct {
 	EventOrderCanceledHandler  nats.Handler
 }
 
+func getTargetSub(reqChan, svcName string) string {
+	return reqChan + "." + svcName
+}
+
 func initEventHandlerFuncs(svc service.IInventoryService) *EventHandlerFuncs {
 	return &EventHandlerFuncs{
 		EventAccountCreatedHandler: makeEventAccountCreatedHandler(svc),
@@ -28,16 +33,17 @@ func initEventHandlerFuncs(svc service.IInventoryService) *EventHandlerFuncs {
 	}
 }
 
-func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscriptions []*nats.Subscription, err error) {
+func (ehf *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscriptions []*nats.Subscription, err error) {
 	var s *nats.Subscription
 	var t svcevent.EventInfo
+	targetSvc := "inventorysvc"
 
 	// subscribe to EventAccountCreated
 	t, err = svcevent.Registry.GetEventInfo(svcevent.EventAccountCreated)
 	if err != nil {
 		return
 	}
-	s, err = nc.Subscribe(t.ReqChan, er.EventAccountCreatedHandler)
+	s, err = nc.Subscribe(getTargetSub(t.ReqChan, targetSvc), ehf.EventAccountCreatedHandler)
 	if err != nil {
 		return
 	}
@@ -48,7 +54,7 @@ func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscription
 	if err != nil {
 		return
 	}
-	s, err = nc.Subscribe(t.ReqChan, er.EventPolicyUpdatedHandler)
+	s, err = nc.Subscribe(getTargetSub(t.ReqChan, targetSvc), ehf.EventPolicyUpdatedHandler)
 	if err != nil {
 		return
 	}
@@ -59,7 +65,7 @@ func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscription
 	if err != nil {
 		return
 	}
-	s, err = nc.Subscribe(t.ReqChan, er.EventOrderCreatedHandler)
+	s, err = nc.Subscribe(getTargetSub(t.ReqChan, targetSvc), ehf.EventOrderCreatedHandler)
 	if err != nil {
 		return
 	}
@@ -70,7 +76,7 @@ func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscription
 	if err != nil {
 		return
 	}
-	s, err = nc.Subscribe(t.ReqChan, er.EventOrderApprovedHandler)
+	s, err = nc.Subscribe(getTargetSub(t.ReqChan, targetSvc), ehf.EventOrderApprovedHandler)
 	if err != nil {
 		return
 	}
@@ -81,7 +87,7 @@ func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscription
 	if err != nil {
 		return
 	}
-	s, err = nc.Subscribe(t.ReqChan, er.EventOrderCanceledHandler)
+	s, err = nc.Subscribe(getTargetSub(t.ReqChan, targetSvc), ehf.EventOrderCanceledHandler)
 	if err != nil {
 		return
 	}
@@ -91,76 +97,141 @@ func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscription
 }
 
 func makeEventAccountCreatedHandler(svc service.IInventoryService) nats.Handler {
-	return func(e *svcevent.Event) {
-		encodedEvent, _ := json.Marshal(e.Payload)
-		fmt.Println(string(encodedEvent))
-
+	return func(m *nats.Msg) {
+		var e svcevent.Event
 		var p svcevent.EventAccountCreatedPayload
-		json.Unmarshal(encodedEvent, &p)
+		json.Unmarshal(m.Data, &e)
+
+		encodedPayload, err := json.Marshal(e.Payload)
+		if err != nil {
+			fmt.Println("marshalling event payload err:", err)
+			return
+		}
+
+		json.Unmarshal(encodedPayload, &p)
+		if err != nil {
+			fmt.Println("unmarshalling err:", err)
+			return
+		}
 
 		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
-		fmt.Println(
-			"event handler [EventAccountCreated] err:",
-			svc.HandleAccountCreatedEvent(ctx, p.AccntID, p.Role))
+		err = svc.HandleAccountCreatedEvent(ctx, p.AccntID, p.Role)
+		if err != nil {
+			fmt.Println("event handler [EventAccountCreated] err:", err)
+		} else {
+			m.Ack()
+		}
 	}
 }
 
 func makeEventPolicyUpdatedHandler(svc service.IInventoryService) nats.Handler {
-	return func(e *svcevent.Event) {
-		encodedEvent, _ := json.Marshal(e.Payload)
-		fmt.Println(string(encodedEvent))
-
+	return func(m *nats.Msg) {
+		var e svcevent.Event
 		var p svcevent.EventPolicyUpdatedPayload
-		json.Unmarshal(encodedEvent, &p)
+		json.Unmarshal(m.Data, &e)
 
-		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
-		fmt.Println(
-			"event handler [EventPolicyUpdated] err:",
-			svc.HandlePolicyUpdatedEvent(ctx, p.Method, p.Sub, p.ResourceType, p.ResourceID, p.Action))
+		encodedPayload, err := json.Marshal(e.Payload)
+		if err != nil {
+			fmt.Println("marshalling event payload err:", err)
+			return
+		}
+
+		err = json.Unmarshal(encodedPayload, &p)
+		if err != nil {
+			fmt.Println("unmarshalling err:", err)
+			return
+		}
+
+		fmt.Println("payload:", string(m.Data))
+		ctx := context.WithValue(context.Background(), "X-Request-ID", "")
+		err = svc.HandlePolicyUpdatedEvent(ctx, p.Method, p.Sub, p.ResourceType, p.ResourceID, p.Action)
+		fmt.Println("event handler [EventPolicyUpdated] err:", err)
+		if (err == nil) || (err == pe.ErrUnsupportedRtype) || (err == pe.ErrSubNotCached) {
+			m.Ack() // if no error occurred processing event ack it
+		}
 	}
 }
 
 func makeEventOrderCreatedHandler(svc service.IInventoryService) nats.Handler {
-	return func(e *svcevent.Event) {
-		encodedEvent, _ := json.Marshal(e.Payload)
-		fmt.Println(string(encodedEvent))
-
+	return func(m *nats.Msg) {
+		var e svcevent.Event
 		var p svcevent.EventOrderCreatedPayload
-		json.Unmarshal(encodedEvent, &p)
+		json.Unmarshal(m.Data, &e)
+
+		encodedPayload, err := json.Marshal(e.Payload)
+		if err != nil {
+			fmt.Println("marshalling event payload err:", err)
+			return
+		}
+
+		json.Unmarshal(encodedPayload, &p)
+		if err != nil {
+			fmt.Println("unmarshalling err:", err)
+			return
+		}
 
 		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
-		fmt.Println(
-			"event handler [EventOrderCreated] err:",
-			svc.HandleOrderCreatedEvent(ctx, p.OrderID, p.ProductID, p.OrderStatus, p.Qty, p.AccntID))
+		err = svc.HandleOrderCreatedEvent(ctx, p.OrderID, p.ProductID, p.OrderStatus, p.Qty, p.AccntID)
+		if err != nil {
+			fmt.Println("event handler [EventOrderCreated] err:", err)
+		} else {
+			m.Ack()
+		}
 	}
 }
 
 func makeEventOrderApprovedHandler(svc service.IInventoryService) nats.Handler {
-	return func(e *svcevent.Event) {
-		encodedEvent, _ := json.Marshal(e.Payload)
-		fmt.Println(string(encodedEvent))
-
+	return func(m *nats.Msg) {
+		var e svcevent.Event
 		var p svcevent.EventOrderApprovedPayload
-		json.Unmarshal(encodedEvent, &p)
+		json.Unmarshal(m.Data, &e)
+
+		encodedPayload, err := json.Marshal(e.Payload)
+		if err != nil {
+			fmt.Println("marshalling event payload err:", err)
+			return
+		}
+
+		json.Unmarshal(encodedPayload, &p)
+		if err != nil {
+			fmt.Println("unmarshalling err:", err)
+			return
+		}
 
 		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
-		fmt.Println(
-			"event handler [EventPolicyUpdated] err:",
-			svc.HandleOrderApprovedEvent(ctx, p.OID))
+		err = svc.HandleOrderApprovedEvent(ctx, p.OID)
+		if err != nil {
+			fmt.Println("event handler [EventPolicyUpdated] err:", err)
+		} else {
+			m.Ack()
+		}
 	}
 }
 
 func makeEventOrderCanceledHandler(svc service.IInventoryService) nats.Handler {
-	return func(e *svcevent.Event) {
-		encodedEvent, _ := json.Marshal(e.Payload)
-		fmt.Println(string(encodedEvent))
-
+	return func(m *nats.Msg) {
+		var e svcevent.Event
 		var p svcevent.EventOrderCanceledPayload
-		json.Unmarshal(encodedEvent, &p)
+		json.Unmarshal(m.Data, &e)
+
+		encodedPayload, err := json.Marshal(e.Payload)
+		if err != nil {
+			fmt.Println("marshalling event payload err:", err)
+			return
+		}
+
+		json.Unmarshal(encodedPayload, &p)
+		if err != nil {
+			fmt.Println("unmarshalling err:", err)
+			return
+		}
 
 		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
-		fmt.Println(
-			"event handler [EventPolicyUpdated] err:",
-			svc.HandleOrderCanceledEvent(ctx, p.OID))
+		err = svc.HandleOrderCanceledEvent(ctx, p.OID)
+		if err != nil {
+			fmt.Println("event handler [EventPolicyUpdated] err:", err)
+		} else {
+			m.Ack()
+		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	svcevent "github.com/AyushSenapati/reactive-micro/paymentsvc/pkg/event"
+	pe "github.com/AyushSenapati/reactive-micro/paymentsvc/pkg/lib/policy-enforcer"
 	"github.com/AyushSenapati/reactive-micro/paymentsvc/pkg/service"
 	"github.com/nats-io/nats.go"
 )
@@ -16,6 +17,10 @@ type EventHandlerFuncs struct {
 	EventProductReservedHandler nats.Handler
 }
 
+func getTargetSub(reqChan, svcName string) string {
+	return reqChan + "." + svcName
+}
+
 func initEventHandlerFuncs(svc service.IPaymentService) *EventHandlerFuncs {
 	return &EventHandlerFuncs{
 		EventAccountCreatedHandler:  makeEventAccountCreatedHandler(svc),
@@ -24,16 +29,17 @@ func initEventHandlerFuncs(svc service.IPaymentService) *EventHandlerFuncs {
 	}
 }
 
-func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscriptions []*nats.Subscription, err error) {
+func (ehf *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscriptions []*nats.Subscription, err error) {
 	var s *nats.Subscription
 	var t svcevent.EventInfo
+	targetSvc := "paymentsvc"
 
 	// subscribe to EventAccountCreated
 	t, err = svcevent.Registry.GetEventInfo(svcevent.EventAccountCreated)
 	if err != nil {
 		return
 	}
-	s, err = nc.Subscribe(t.ReqChan, er.EventAccountCreatedHandler)
+	s, err = nc.Subscribe(getTargetSub(t.ReqChan, targetSvc), ehf.EventAccountCreatedHandler)
 	if err != nil {
 		return
 	}
@@ -44,7 +50,7 @@ func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscription
 	if err != nil {
 		return
 	}
-	s, err = nc.Subscribe(t.ReqChan, er.EventPolicyUpdatedHandler)
+	s, err = nc.Subscribe(getTargetSub(t.ReqChan, targetSvc), ehf.EventPolicyUpdatedHandler)
 	if err != nil {
 		return
 	}
@@ -55,7 +61,7 @@ func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscription
 	if err != nil {
 		return
 	}
-	s, err = nc.Subscribe(t.ReqChan, er.EventProductReservedHandler)
+	s, err = nc.Subscribe(getTargetSub(t.ReqChan, targetSvc), ehf.EventProductReservedHandler)
 	if err != nil {
 		return
 	}
@@ -65,46 +71,85 @@ func (er *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscription
 }
 
 func makeEventAccountCreatedHandler(svc service.IPaymentService) nats.Handler {
-	return func(e *svcevent.Event) {
-		encodedEvent, _ := json.Marshal(e.Payload)
-		fmt.Println(string(encodedEvent))
-
+	return func(m *nats.Msg) {
+		var e svcevent.Event
 		var p svcevent.EventAccountCreatedPayload
-		json.Unmarshal(encodedEvent, &p)
+		json.Unmarshal(m.Data, &e)
+
+		encodedPayload, err := json.Marshal(e.Payload)
+		if err != nil {
+			fmt.Println("marshalling event payload err:", err)
+			return
+		}
+
+		json.Unmarshal(encodedPayload, &p)
+		if err != nil {
+			fmt.Println("unmarshalling err:", err)
+			return
+		}
 
 		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
-		fmt.Println(
-			"event handler [EventAccountCreated] err:",
-			svc.HandleAccountCreatedEvent(ctx, p.AccntID, p.Role))
+		err = svc.HandleAccountCreatedEvent(ctx, p.AccntID, p.Role)
+		if err != nil {
+			fmt.Println("event handler [EventAccountCreated] err:", err)
+		} else {
+			m.Ack()
+		}
 	}
 }
 
 func makeEventPolicyUpdatedHandler(svc service.IPaymentService) nats.Handler {
-	return func(e *svcevent.Event) {
-		encodedEvent, _ := json.Marshal(e.Payload)
-		fmt.Println(string(encodedEvent))
-
+	return func(m *nats.Msg) {
+		var e svcevent.Event
 		var p svcevent.EventPolicyUpdatedPayload
-		json.Unmarshal(encodedEvent, &p)
+		json.Unmarshal(m.Data, &e)
 
-		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
-		fmt.Println(
-			"event handler [EventPolicyUpdated] err:",
-			svc.HandlePolicyUpdatedEvent(ctx, p.Method, p.Sub, p.ResourceType, p.ResourceID, p.Action))
+		encodedPayload, err := json.Marshal(e.Payload)
+		if err != nil {
+			fmt.Println("marshalling event payload err:", err)
+			return
+		}
+
+		err = json.Unmarshal(encodedPayload, &p)
+		if err != nil {
+			fmt.Println("unmarshalling err:", err)
+			return
+		}
+
+		fmt.Println("payload:", string(m.Data))
+		ctx := context.WithValue(context.Background(), "X-Request-ID", "")
+		err = svc.HandlePolicyUpdatedEvent(ctx, p.Method, p.Sub, p.ResourceType, p.ResourceID, p.Action)
+		fmt.Println("event handler [EventPolicyUpdated] err:", err)
+		if (err == nil) || (err == pe.ErrUnsupportedRtype) || (err == pe.ErrSubNotCached) {
+			m.Ack() // if no error occurred processing event ack it
+		}
 	}
 }
 
 func makeEventProductReservedHandler(svc service.IPaymentService) nats.Handler {
-	return func(e *svcevent.Event) {
-		encodedEvent, _ := json.Marshal(e.Payload)
-		fmt.Println(string(encodedEvent))
-
+	return func(m *nats.Msg) {
+		var e svcevent.Event
 		var p svcevent.EventProductReservedPayload
-		json.Unmarshal(encodedEvent, &p)
+		json.Unmarshal(m.Data, &e)
+
+		encodedPayload, err := json.Marshal(e.Payload)
+		if err != nil {
+			fmt.Println("marshalling event payload err:", err)
+			return
+		}
+
+		json.Unmarshal(encodedPayload, &p)
+		if err != nil {
+			fmt.Println("unmarshalling err:", err)
+			return
+		}
 
 		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
-		fmt.Println(
-			"event handler [EventProductReserved] err:",
-			svc.HandleProductReservedEvent(ctx, p.OrderID, p.AccntID, float32(p.Payble)))
+		err = svc.HandleProductReservedEvent(ctx, p.OrderID, p.AccntID, float32(p.Payble))
+		if err != nil {
+			fmt.Println("event handler [EventProductReserved] err:", err)
+		} else {
+			m.Ack()
+		}
 	}
 }
