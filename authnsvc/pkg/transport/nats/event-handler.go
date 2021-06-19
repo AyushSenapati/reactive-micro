@@ -42,10 +42,10 @@ func (eh *EventHandler) Execute() error {
 
 func (eh *EventHandler) Interrupt(err error) {
 	fmt.Println("event handler: cleanup started")
-	eh.nc.Close()
 	close(eh.cancel)
 	for _, s := range eh.subcriptions {
 		s.Unsubscribe()
 	}
+	eh.nc.Close()
 	fmt.Println("event handler: cleanup completed")
 }
