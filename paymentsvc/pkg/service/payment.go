@@ -36,7 +36,7 @@ func (svc *basicPaymentService) RechargeWallet(ctx context.Context, aid uint, am
 	eventErr = eventPublisher.Publish(svc.nc)
 	svc.cl.LogIfError(ctx, eventErr)
 	if eventErr == nil {
-		svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventUpsertPolicy))
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", eventPublisher.GetEventNames()))
 	}
 
 	return txid, err
