@@ -3,9 +3,11 @@ package nats
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	svcconf "github.com/AyushSenapati/reactive-micro/inventorysvc/conf"
+	ce "github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/error"
 	svcevent "github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/event"
 	pe "github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/lib/policy-enforcer"
 	cl "github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/logger"
@@ -240,6 +242,10 @@ func makeEventOrderCanceledHandler(logger *cl.CustomLogger, svc service.IInvento
 		}
 
 		err = svc.HandleOrderCanceledEvent(ctx, p.OID)
+		if errors.Is(err, &ce.ResourceNotFoundErr{}) {
+			m.Ack()
+			return
+		}
 		if err != nil {
 			logger.Error(ctx, fmt.Sprintf("event handler [EventOrderCanceled] err: %v", err))
 			return

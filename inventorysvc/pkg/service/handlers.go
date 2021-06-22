@@ -40,7 +40,7 @@ func (svc *basicInventoryService) HandleAccountCreatedEvent(ctx context.Context,
 	eventErr = eventPublisher.Publish(svc.nc)
 	svc.cl.LogIfError(ctx, eventErr)
 	if eventErr == nil {
-		svc.cl.Error(ctx, fmt.Sprintf(
+		svc.cl.Debug(ctx, fmt.Sprintf(
 			"published events: %v", eventPublisher.GetEventNames()))
 	}
 
@@ -82,7 +82,7 @@ func (svc *basicInventoryService) HandleOrderCreatedEvent(ctx context.Context, o
 	eventErr = eventPublisher.Publish(svc.nc)
 	svc.cl.LogIfError(ctx, eventErr)
 	if eventErr == nil {
-		svc.cl.Error(ctx, fmt.Sprintf(
+		svc.cl.Debug(ctx, fmt.Sprintf(
 			"published events: %v", eventPublisher.GetEventNames()))
 	}
 

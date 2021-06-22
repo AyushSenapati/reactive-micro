@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/dto"
+	ce "github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/error"
 	"github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/model"
 )
 
@@ -153,11 +154,14 @@ func (b *basicInventoryRepo) RemoveReservedProduct(ctx context.Context, oid uuid
 func (b *basicInventoryRepo) UndoReserveProduct(ctx context.Context, oid uuid.UUID) error {
 	err := b.db.Transaction(func(tx *gorm.DB) error {
 		rpo := model.ReservedProduct{OID: oid}
-		err := tx.Debug().Find(&rpo).Error
-		if err != nil {
-			return err
+		result := tx.Debug().Find(&rpo)
+		if result.RowsAffected == 0 {
+			return &ce.ResourceNotFoundErr{Type: "reserved_products", ID: oid.String()}
 		}
-		err = tx.Debug().Delete(&rpo).Error
+		if result.Error != nil {
+			return result.Error
+		}
+		err := tx.Debug().Delete(&rpo).Error
 		if err != nil {
 			return err
 		}
