@@ -151,3 +151,10 @@ func (ep *EventPublisher) Publish(nc *nats.EncodedConn) error {
 	}
 	return nil
 }
+
+func (ep *EventPublisher) GetEventNames() (names []string) {
+	for _, e := range ep.events {
+		names = append(names, e.Name())
+	}
+	return
+}
