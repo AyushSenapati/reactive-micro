@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/AyushSenapati/reactive-micro/authzsvc/pkg/dto"
+	cl "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/logger"
 	"github.com/AyushSenapati/reactive-micro/authzsvc/pkg/repo"
 	"github.com/nats-io/nats.go"
 )
@@ -18,6 +19,7 @@ type IAuthzService interface {
 }
 
 type basicAuthzService struct {
+	cl   *cl.CustomLogger
 	repo repo.AuthzRepo
 	nc   *nats.EncodedConn
 }
@@ -48,12 +50,13 @@ func WithNATSEncodedConn(nc *nats.EncodedConn) SvcConf {
 
 // New returns a AuthzService implementation with
 // all of the expected config/middleware wired in.
-func New(svcconfs ...SvcConf) IAuthzService {
+func New(logger *cl.CustomLogger, svcconfs ...SvcConf) IAuthzService {
 	svc := NewBasicAuthzService()
+	svc.cl = logger
 	for _, configure := range svcconfs {
 		if configure != nil {
 			if err := configure(svc); err != nil {
-				fmt.Println("svc error:", err)
+				logger.Error(context.TODO(), fmt.Sprintf("svc err: %v", err))
 				return nil
 			}
 		}

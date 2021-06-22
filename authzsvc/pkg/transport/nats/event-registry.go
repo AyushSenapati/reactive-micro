@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	// "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/endpoint"
+	svcconf "github.com/AyushSenapati/reactive-micro/authzsvc/conf"
 	svcevent "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/event"
+	cl "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/logger"
 	"github.com/AyushSenapati/reactive-micro/authzsvc/pkg/service"
 	"github.com/nats-io/nats.go"
 )
@@ -21,11 +22,11 @@ func getTargetSub(reqChan, svcName string) string {
 	return reqChan + "." + svcName
 }
 
-func initEventHandlerFuncs(svc service.IAuthzService) *EventHandlerFuncs {
+func initEventHandlerFuncs(logger *cl.CustomLogger, svc service.IAuthzService) *EventHandlerFuncs {
 	return &EventHandlerFuncs{
-		EventUpsertPolicyHandler:   makeEventUpsertPolicyHandler(svc),
-		EventRemovePolicyHandler:   makeEventRemovePolicyHandler(svc),
-		EventAccountDeletedHandler: makeEventAccountDeletedHandler(svc),
+		EventUpsertPolicyHandler:   makeEventUpsertPolicyHandler(logger, svc),
+		EventRemovePolicyHandler:   makeEventRemovePolicyHandler(logger, svc),
+		EventAccountDeletedHandler: makeEventAccountDeletedHandler(logger, svc),
 	}
 }
 
@@ -70,87 +71,92 @@ func (ehf *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscriptio
 	return
 }
 
-func makeEventUpsertPolicyHandler(svc service.IAuthzService) nats.Handler {
+func makeEventUpsertPolicyHandler(logger *cl.CustomLogger, svc service.IAuthzService) nats.Handler {
 	return func(m *nats.Msg) {
 		var e svcevent.Event
 		var p svcevent.EventUpsertPolicyPayload
+
 		json.Unmarshal(m.Data, &e)
+		ctx := context.WithValue(context.Background(), svcconf.C.ReqIDKey, e.Meta.RequestID)
+		logger.Debug(ctx, fmt.Sprintf("event info: %s", string(m.Data)))
 
 		encodedPayload, err := json.Marshal(e.Payload)
 		if err != nil {
-			fmt.Println("marshalling event payload err:", err)
+			logger.Error(ctx, fmt.Sprintf("event handler [EventUpsertPolicy] err: %v", err))
 			return
 		}
 
 		json.Unmarshal(encodedPayload, &p)
 		if err != nil {
-			fmt.Println("unmarshalling err:", err)
+			logger.Error(ctx, fmt.Sprintf("event handler [EventUpsertPolicy] err: %v", err))
 			return
 		}
 
-		fmt.Println("payload:", string(m.Data))
-		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
 		err = svc.UpsertPolicy(ctx, p.Sub, p.ResourceType, p.ResourceID, p.Action)
 		if err != nil {
-			fmt.Printf("event handler: error in upsert operation [%v]\n", err)
-		} else {
-			m.Ack()
+			logger.Error(ctx, fmt.Sprintf("event handler [EventUpsertPolicy] err: %v", err))
+			return
 		}
+		m.Ack()
 	}
 }
 
-func makeEventRemovePolicyHandler(svc service.IAuthzService) nats.Handler {
+func makeEventRemovePolicyHandler(logger *cl.CustomLogger, svc service.IAuthzService) nats.Handler {
 	return func(m *nats.Msg) {
 		var e svcevent.Event
 		var p svcevent.EventRemovePolicyPayload
+
 		json.Unmarshal(m.Data, &e)
+		ctx := context.WithValue(context.Background(), svcconf.C.ReqIDKey, e.Meta.RequestID)
+		logger.Debug(ctx, fmt.Sprintf("event info: %s", string(m.Data)))
 
 		encodedPayload, err := json.Marshal(e.Payload)
 		if err != nil {
-			fmt.Println("marshalling event payload err:", err)
+			logger.Error(ctx, fmt.Sprintf("event handler [EventRemovePolicy] err: %v", err))
 			return
 		}
 
 		json.Unmarshal(encodedPayload, &p)
 		if err != nil {
-			fmt.Println("unmarshalling err:", err)
+			logger.Error(ctx, fmt.Sprintf("event handler [EventRemovePolicy] err: %v", err))
 			return
 		}
 
-		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
 		err = svc.RemovePolicy(ctx, p.Sub, p.ResourceType, p.ResourceID, p.Action)
 		if err != nil {
-			fmt.Printf("event handler: error removing policy [%v]\n", err)
-		} else {
-			m.Ack()
+			logger.Error(ctx, fmt.Sprintf("event handler [EventRemovePolicy] err: %v", err))
+			return
 		}
+		m.Ack()
 	}
 }
 
-func makeEventAccountDeletedHandler(svc service.IAuthzService) nats.Handler {
+func makeEventAccountDeletedHandler(logger *cl.CustomLogger, svc service.IAuthzService) nats.Handler {
 	return func(m *nats.Msg) {
 		var e svcevent.Event
 		var p svcevent.EventAccountDeletedPayload
+
 		json.Unmarshal(m.Data, &e)
+		ctx := context.WithValue(context.Background(), svcconf.C.ReqIDKey, e.Meta.RequestID)
+		logger.Debug(ctx, fmt.Sprintf("event info: %s", string(m.Data)))
 
 		encodedPayload, err := json.Marshal(e.Payload)
 		if err != nil {
-			fmt.Println("marshalling event payload err:", err)
+			logger.Error(ctx, fmt.Sprintf("event handler [EventAccountDeleted] err: %v", err))
 			return
 		}
 
 		json.Unmarshal(encodedPayload, &p)
 		if err != nil {
-			fmt.Println("unmarshalling err:", err)
+			logger.Error(ctx, fmt.Sprintf("event handler [EventAccountDeleted] err: %v", err))
 			return
 		}
 
-		ctx := context.WithValue(context.Background(), "X-Request-ID", e.Meta.RequestID)
 		err = svc.RemovePolicyBySub(ctx, fmt.Sprint(p.AccntID))
 		if err != nil {
-			fmt.Printf("event handler: error removing policy for account: %v [%v]\n", p.AccntID, err)
-		} else {
-			m.Ack()
+			logger.Error(ctx, fmt.Sprintf("event handler [EventAccountDeleted] err: %v", err))
+			return
 		}
+		m.Ack()
 	}
 }

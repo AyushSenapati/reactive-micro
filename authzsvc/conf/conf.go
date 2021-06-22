@@ -35,6 +35,7 @@ var (
 type Config struct {
 	Env string `mapstructure:"env"`
 
+	ReqIDKey string `mapstructure:"req_id_key"`
 	SVCName  string `mapstructure:"svc_name"`
 	MongoURI string `mapstructure:"mongo_uri"`
 	NATSUrl  string `mapstructure:"nats_url"`

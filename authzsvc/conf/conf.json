@@ -1,5 +1,6 @@
 {
     "env": "dev",
+    "req_id_key": "X-Request-ID",
     "svc_name": "reactive-micro-authz-svc",
     "mongo_uri": "mongodb://localhost:27017/authzdb?w=majority",
     "nats_url": "localhost:4222",

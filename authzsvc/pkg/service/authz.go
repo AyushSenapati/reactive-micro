@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/AyushSenapati/reactive-micro/authzsvc/pkg/dto"
 	svcevent "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/event"
@@ -9,12 +10,13 @@ import (
 
 func (svc *basicAuthzService) UpsertPolicy(ctx context.Context, sub, resourceType, resourceID, action string) error {
 	err := svc.repo.UpsertPolicy(ctx, sub, resourceType, resourceID, action)
+	svc.cl.LogIfError(ctx, fmt.Errorf("upsert policy err [%v]", err))
 
 	// on successful upsert policy operation fire policy updated event
 	// to let other services aware of the changes and update their cache
 	if err == nil {
 		eventPublisher := svcevent.NewEventPublisher()
-		eventPublisher.AddEvent(
+		eventErr := eventPublisher.AddEvent(
 			svcevent.NewEvent(
 				ctx, svcevent.EventPolicyUpdated,
 				svcevent.EventPolicyUpdatedPayload{
@@ -25,7 +27,13 @@ func (svc *basicAuthzService) UpsertPolicy(ctx context.Context, sub, resourceTyp
 					Action:       action,
 				},
 			))
-		eventPublisher.Publish(svc.nc)
+		svc.cl.LogIfError(ctx, eventErr)
+
+		eventErr = eventPublisher.Publish(svc.nc)
+		svc.cl.LogIfError(ctx, eventErr)
+		if eventErr == nil {
+			svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventPolicyUpdated))
+		}
 	}
 
 	return err
@@ -38,12 +46,13 @@ func (svc *basicAuthzService) ListPolicy(ctx context.Context, reqObj dto.ListPol
 
 func (svc *basicAuthzService) RemovePolicy(ctx context.Context, sub, resourceType, resourceID, action string) error {
 	err := svc.repo.RemovePolicy(ctx, sub, resourceType, resourceID, action)
+	svc.cl.LogIfError(ctx, fmt.Errorf("error removing policy [%v]", err))
 
 	// on successful removal of a policy fire policy updated event
 	// to let other services aware of the changes and update their cache
 	if err == nil {
 		eventPublisher := svcevent.NewEventPublisher()
-		eventPublisher.AddEvent(
+		eventErr := eventPublisher.AddEvent(
 			svcevent.NewEvent(
 				ctx, svcevent.EventPolicyUpdated,
 				svcevent.EventPolicyUpdatedPayload{
@@ -54,7 +63,12 @@ func (svc *basicAuthzService) RemovePolicy(ctx context.Context, sub, resourceTyp
 					Action:       action,
 				},
 			))
-		eventPublisher.Publish(svc.nc)
+		svc.cl.LogIfError(ctx, eventErr)
+		eventErr = eventPublisher.Publish(svc.nc)
+		svc.cl.LogIfError(ctx, eventErr)
+		if eventErr == nil {
+			svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventPolicyUpdated))
+		}
 	}
 
 	return err

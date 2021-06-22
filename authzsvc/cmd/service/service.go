@@ -12,13 +12,13 @@ import (
 	"syscall"
 
 	svcconf "github.com/AyushSenapati/reactive-micro/authzsvc/conf"
-	"github.com/AyushSenapati/reactive-micro/authzsvc/pkg/endpoint"
+	svcep "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/endpoint"
+	cl "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/logger"
 	svcrepo "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/repo"
 	"github.com/AyushSenapati/reactive-micro/authzsvc/pkg/service"
 	httptransport "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/transport/http"
 	natstransport "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/transport/nats"
 	kitep "github.com/go-kit/kit/endpoint"
-	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/nats-io/nats.go"
 	"github.com/oklog/run"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -28,6 +28,9 @@ import (
 
 var fs = flag.NewFlagSet("user", flag.ExitOnError)
 var httpAddr = fs.String("http-addr", ":8083", "HTTP listen address")
+
+// holds the name of all the endpoints that ther service supports
+var allMethods = []string{"UpsertPolicy", "ListPolicy", "RemovePolicy", "RemovePolicyBySub"}
 
 func Run() {
 	fs.Parse(os.Args[1:])
@@ -43,27 +46,34 @@ func Run() {
 	serializedConf, _ := json.Marshal(confObj)
 	fmt.Println(string(serializedConf))
 
+	logger := cl.NewLogger(confObj.Env)
+	logger.Configure(
+		cl.WithSvcName(confObj.SVCName),
+		cl.WithTimeStamp(),
+	)
+
 	// Get Mongo client to setup service repo
 	mongoClient := getMongoClient(ctx, confObj)
 	defer func() {
-		fmt.Printf("mongo: disconnecting client...")
 		if err := mongoClient.Disconnect(ctx); err != nil {
-			fmt.Printf(" failed [%v]\n", err)
+			logger.Info(ctx, fmt.Sprintf("mongo: error disconnecting client [%v]", err))
+			return
 		}
-		fmt.Println(" done")
+		logger.Info(ctx, "mongo: client disconnected")
 	}()
 
 	// Get NATS json encoded connection object
 	nc := getNATSEncodedConn(confObj)
 	defer func() {
 		nc.Close()
-		fmt.Println("nats: disconnected")
+		logger.Info(ctx, "nats: disconnected")
 	}()
+	logger.Info(ctx, "nats: connected")
 
 	// initialize service repo
 	repoObj := svcrepo.NewAuthzRepo(mongoClient)
 	if repoObj == nil {
-		fmt.Println("failed initialising service repository")
+		logger.Info(ctx, "error in initialising service repository")
 		return
 	}
 
@@ -72,22 +82,22 @@ func Run() {
 		service.WithRepo(repoObj),
 		service.WithNATSEncodedConn(nc),
 	}
-	svc := service.New(svcConfigs...)
+	svc := service.New(logger, svcConfigs...)
 	if svc == nil {
-		fmt.Println("error initialising service")
+		logger.Error(ctx, "error initialising service")
 		return
 	}
 
 	// initialise endpoint
-	eps := endpoint.New(svc, getEndpointMW(confObj))
+	eps := svcep.New(svc, getEndpointMW(confObj))
 
 	g := &run.Group{}
-	initEventHandler(svc, nc, g) // initialise NATS transport
-	initHttpHandler(eps, g)      // initialise HTTP transport
-	initCancelInterrupt(g)       // prepare listening OS interrupt signal
+	initEventHandler(logger, svc, nc, g) // initialise NATS transport
+	initHttpHandler(logger, eps, g)      // initialise HTTP transport
+	initCancelInterrupt(g)               // prepare listening OS interrupt signal
 	err = g.Run()
 	if err != nil {
-		fmt.Println("final err:", err)
+		logger.Error(ctx, fmt.Sprintf("final err: %v", err))
 	}
 }
 
@@ -96,7 +106,7 @@ func getEndpointMW(c *svcconf.Config) (mw map[string][]kitep.Middleware) {
 	return
 }
 
-func initHttpHandler(endpoints endpoint.Endpoints, g *run.Group) {
+func initHttpHandler(logger *cl.CustomLogger, endpoints svcep.Endpoints, g *run.Group) {
 	options := defaultHttpOptions()
 
 	// Add your http options here
@@ -105,16 +115,16 @@ func initHttpHandler(endpoints endpoint.Endpoints, g *run.Group) {
 	httpHandler := httptransport.NewHTTPHandler(endpoints, options)
 	nl, err := net.Listen("tcp", *httpAddr)
 	if err != nil {
-		fmt.Println("transport err: err during listing on specified address")
+		logger.Error(context.TODO(), "transport [HTTP]: err during listing on specified address")
 		return
 	}
 	g.Add(func() error {
-		fmt.Println("listening at", *httpAddr)
+		logger.Info(context.TODO(), fmt.Sprintf("transport [HTTP]: listening at %s", *httpAddr))
 		return http.Serve(nl, httpHandler)
 	}, func(err error) {
-		fmt.Println("err:", err)
+		logger.Error(context.TODO(), fmt.Sprintf("transport [HTTP]: %v", err))
 		nl.Close()
-		fmt.Println("closed the HTTP listener")
+		logger.Info(context.TODO(), "transport [HTTP]: closed the HTTP listener")
 	})
 }
 
@@ -134,15 +144,8 @@ func initCancelInterrupt(g *run.Group) {
 	})
 }
 
-func defaultHttpOptions() map[string][]kithttp.ServerOption {
-	options := map[string][]kithttp.ServerOption{
-		"ListPolicy": {kithttp.ServerErrorEncoder(httptransport.ErrorEncoder)},
-	}
-	return options
-}
-
-func initEventHandler(svc service.IAuthzService, nc *nats.EncodedConn, g *run.Group) {
-	eventHandler := natstransport.NewEventHandler(nc, svc)
+func initEventHandler(logger *cl.CustomLogger, svc service.IAuthzService, nc *nats.EncodedConn, g *run.Group) {
+	eventHandler := natstransport.NewEventHandler(logger, nc, svc)
 	g.Add(eventHandler.Execute, eventHandler.Interrupt)
 }
 
@@ -154,7 +157,6 @@ func getMongoClient(ctx context.Context, c *svcconf.Config) *mongo.Client {
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {
 		panic(err)
 	}
-	fmt.Println("mongo: connected")
 	return client
 }
 
@@ -168,6 +170,5 @@ func getNATSEncodedConn(c *svcconf.Config) *nats.EncodedConn {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("nats: connected")
 	return encodedConn
 }
