@@ -14,9 +14,6 @@ import (
 
 // InventoryRepository defines all the DB operations that the service supports
 type InventoryRepository interface {
-	// CreateOrder(ctx context.Context, aid uint, qty int, product_id uuid.UUID, status model.OrderStatus) (uuid.UUID, error)
-	// ListOrder(ctx context.Context, qp *dto.BasicQueryParam) ([]model.Order, error)
-	// ListOrderByIDs(ctx context.Context, oids []uuid.UUID, qp *dto.BasicQueryParam) ([]model.Order, error)
 	CreateMerchant(ctx context.Context, merchantName string, adminID uint) (uuid.UUID, error)
 	ListMerchant(ctx context.Context) (merchants []model.Merchant, err error)
 	ListMerchantByIDs(ctx context.Context, mids []uuid.UUID) ([]model.Merchant, error)
@@ -116,7 +113,6 @@ func (b *basicInventoryRepo) ListProductByIDs(ctx context.Context, pids []uuid.U
 		values = append(values, fmt.Sprintf("('%s')", pid.String()))
 	}
 	q := fmt.Sprintf("select * from products p where p.id = any ( values %s )", strings.Join(values, ","))
-	// fmt.Println(b.db.Explain(q))
 	err = b.db.Debug().Raw(q, values).Scan(&products).Error
 	return
 }
