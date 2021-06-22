@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	svcconf "github.com/AyushSenapati/reactive-micro/authnsvc/conf"
 	svcevent "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/event"
 	pe "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/lib/policy-enforcer"
+	cl "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/logger"
 	"github.com/AyushSenapati/reactive-micro/authnsvc/pkg/service"
 	"github.com/nats-io/nats.go"
 )
@@ -19,9 +21,9 @@ func getTargetSub(reqChan, svcName string) string {
 	return reqChan + "." + svcName
 }
 
-func initEventHandlerFuncs(svc service.IAuthNService) *EventHandlerFuncs {
+func initEventHandlerFuncs(logger *cl.CustomLogger, svc service.IAuthNService) *EventHandlerFuncs {
 	return &EventHandlerFuncs{
-		EventPolicyUpdatedHandler: makeEventPolicyUpdatedHandler(svc),
+		EventPolicyUpdatedHandler: makeEventPolicyUpdatedHandler(logger, svc),
 	}
 }
 
@@ -44,30 +46,32 @@ func (ehf *EventHandlerFuncs) GetSubscription(nc *nats.EncodedConn) (subscriptio
 	return
 }
 
-func makeEventPolicyUpdatedHandler(svc service.IAuthNService) nats.Handler {
+func makeEventPolicyUpdatedHandler(logger *cl.CustomLogger, svc service.IAuthNService) nats.Handler {
 	return func(m *nats.Msg) {
 		var e svcevent.Event
 		var p svcevent.EventPolicyUpdatedPayload
+
 		json.Unmarshal(m.Data, &e)
+		ctx := context.WithValue(context.Background(), svcconf.C.ReqIDKey, e.Meta.RequestID)
+		logger.Debug(ctx, fmt.Sprintf("event info: %s", string(m.Data)))
 
 		encodedPayload, err := json.Marshal(e.Payload)
 		if err != nil {
-			fmt.Println("marshalling event payload err:", err)
+			logger.Error(ctx, fmt.Sprintf("event handler [EventPolicyUpdated] err: %v", err))
 			return
 		}
 
 		err = json.Unmarshal(encodedPayload, &p)
 		if err != nil {
-			fmt.Println("unmarshalling err:", err)
+			logger.Error(ctx, fmt.Sprintf("event handler [EventPolicyUpdated] err: %v", err))
 			return
 		}
 
-		fmt.Println("payload:", string(m.Data))
-		ctx := context.WithValue(context.Background(), "X-Request-ID", "")
 		err = svc.HandlePolicyUpdatedEvent(ctx, p.Method, p.Sub, p.ResourceType, p.ResourceID, p.Action)
-		fmt.Println("event handler [EventPolicyUpdated] err:", err)
 		if (err == nil) || (err == pe.ErrUnsupportedRtype) || (err == pe.ErrSubNotCached) {
 			m.Ack() // if no error occurred processing event ack it
+			return
 		}
+		logger.Error(ctx, fmt.Sprintf("event handler [EventPolicyUpdated] err: %v", err))
 	}
 }

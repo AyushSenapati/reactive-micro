@@ -29,8 +29,7 @@ func (m *authzMW) HandlePolicyUpdatedEvent(ctx context.Context, t, sub, rtype, r
 func (m *authzMW) DeleteAccount(ctx context.Context, aid uint) (err error) {
 	claim := ctx.Value(kitjwt.JWTClaimsContextKey).(*dto.CustomClaim)
 	reqPolicy := fmt.Sprintf("%v:%s:%s:%v", claim.AccntID, "accounts", "delete", aid)
-	fmt.Println("request policy:", reqPolicy)
-	if !m.pe.Enforce(reqPolicy, nil) {
+	if !m.pe.Enforce(ctx, reqPolicy, nil) {
 		return ce.ErrInsufficientPerm
 	}
 	return m.next.DeleteAccount(ctx, aid)
@@ -49,8 +48,8 @@ func (m *authzMW) ListAccount(ctx context.Context, aids []uint, qp *dto.BasicQue
 	if !ok {
 		return dto.ListAccountResponse{Err: kitjwt.ErrTokenContextMissing}
 	}
-	rids := m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "accounts", "*")
-	rids = append(rids, m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "accounts", "get")...)
+	rids := m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "accounts", "*")
+	rids = append(rids, m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "accounts", "get")...)
 	if len(rids) <= 0 {
 		return dto.ListAccountResponse{Err: ce.ErrInsufficientPerm}
 	}

@@ -1,8 +1,9 @@
 {
     "env": "dev",
+    "req_id_key": "X-Request-ID",
     "svc_name": "reactive-micro-authn-svc",
     "nats_url": "localhost:4222",
-    "authzsvc_url": "http://localhost:8003/v1/authzsvc/policies",
+    "authzsvc_url": "http://localhost:8083/v1/authzsvc/policies",
     "postgres": {
         "host": "localhost",
         "port": 5432,
