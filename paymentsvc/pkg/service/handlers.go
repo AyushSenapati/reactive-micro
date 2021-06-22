@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	svcevent "github.com/AyushSenapati/reactive-micro/paymentsvc/pkg/event"
+	"github.com/AyushSenapati/reactive-micro/paymentsvc/pkg/repo"
 	"github.com/google/uuid"
 )
 
@@ -83,6 +84,12 @@ func (svc *basicPaymentService) HandleProductReservedEvent(ctx context.Context, 
 	svc.cl.LogIfError(ctx, eventErr)
 	if eventErr == nil {
 		svc.cl.Debug(ctx, fmt.Sprintf("published events: %v", eventPublisher.GetEventNames()))
+	}
+
+	// set err to nil, so that event handler would not consider this err
+	// as application error which would lead event handler to retry EventProductReserved
+	if err == repo.ErrInsufficientBalance {
+		err = nil
 	}
 
 	return err

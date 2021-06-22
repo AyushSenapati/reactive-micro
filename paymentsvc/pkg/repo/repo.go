@@ -2,7 +2,7 @@ package repo
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -10,6 +10,8 @@ import (
 	"github.com/AyushSenapati/reactive-micro/paymentsvc/pkg/dto"
 	"github.com/AyushSenapati/reactive-micro/paymentsvc/pkg/model"
 )
+
+var ErrInsufficientBalance = errors.New("insufficient balance")
 
 // PaymentRepository defines all the DB operations that the service supports
 type PaymentRepository interface {
@@ -83,7 +85,10 @@ func (b *basicPaymentRepo) ExecuteTX(ctx context.Context, aid uint, amount float
 				"accnt_id = ? and balance > ?", aid, amount).Update("balance", gorm.Expr("balance - ?", amount))
 		}
 		if result.RowsAffected == 0 {
-			return fmt.Errorf("failed updating wallet for AID: %v [err: %v]", aid, result.Error)
+			if result.Error == nil {
+				return ErrInsufficientBalance
+			}
+			return result.Error
 		}
 
 		txo := model.Transaction{ID: txid, Amount: amount, MadeBy: aid, IsCredit: isCredit}
