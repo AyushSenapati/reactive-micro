@@ -59,7 +59,7 @@ func (svc *basicOrderService) CreateOrder(ctx context.Context, pid uuid.UUID, qt
 	svc.cl.LogIfError(ctx, eventErr)
 	if eventErr == nil {
 		svc.cl.Debug(ctx, fmt.Sprintf(
-			"published events: 1@%s 2@%s", svcevent.EventOrderCreated, svcevent.EventUpsertPolicy))
+			"published events: %v", eventPublisher.GetEventNames()))
 	}
 
 	// dont send the event error to the client as
@@ -90,5 +90,6 @@ func (svc *basicOrderService) ListOrder(ctx context.Context, oids []uuid.UUID, q
 			ProdName: "", // call inventory svc to get product details
 		})
 	}
+
 	return dto.ListOrderResponse{Orders: orders}
 }

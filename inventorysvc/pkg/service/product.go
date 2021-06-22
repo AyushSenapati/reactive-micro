@@ -33,7 +33,8 @@ func (svc *basicInventoryService) CreateProduct(
 	eventErr = eventPublisher.Publish(svc.nc)
 	svc.cl.LogIfError(ctx, eventErr)
 	if eventErr == nil {
-		svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventUpsertPolicy))
+		svc.cl.Debug(ctx, fmt.Sprintf(
+			"published events: %v", eventPublisher.GetEventNames()))
 	}
 
 	return dto.CreateProductResponse{ID: pid, Err: err}

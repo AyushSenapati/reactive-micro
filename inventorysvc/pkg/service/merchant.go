@@ -43,7 +43,8 @@ func (svc *basicInventoryService) CreateMerchant(ctx context.Context, aid uint, 
 	eventErr = eventPublisher.Publish(svc.nc)
 	svc.cl.LogIfError(ctx, eventErr)
 	if eventErr == nil {
-		svc.cl.Debug(ctx, fmt.Sprintf("published events: 2@%s", svcevent.EventUpsertPolicy))
+		svc.cl.Debug(ctx, fmt.Sprintf(
+			"published events: %v", eventPublisher.GetEventNames()))
 	}
 
 	return dto.CreateMerchantResponse{ID: mid, Err: err}

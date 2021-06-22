@@ -10,9 +10,11 @@ import (
 
 func (svc *basicInventoryService) HandleAccountCreatedEvent(ctx context.Context, aid uint, role string) error {
 	eventPublisher := svcevent.NewEventPublisher()
+	var eventErr error
+
 	if role == "customer" {
 		// customer can list all the products
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventUpsertPolicy,
 			svcevent.EventUpsertPolicyPayload{
 				Sub:          fmt.Sprint(aid),
@@ -23,7 +25,7 @@ func (svc *basicInventoryService) HandleAccountCreatedEvent(ctx context.Context,
 		))
 	} else if role == "seller" {
 		// seller can register a merchant
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventUpsertPolicy,
 			svcevent.EventUpsertPolicyPayload{
 				Sub:          fmt.Sprint(aid),
@@ -33,7 +35,14 @@ func (svc *basicInventoryService) HandleAccountCreatedEvent(ctx context.Context,
 			},
 		))
 	}
-	eventPublisher.Publish(svc.nc)
+
+	svc.cl.LogIfError(ctx, eventErr)
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Error(ctx, fmt.Sprintf(
+			"published events: %v", eventPublisher.GetEventNames()))
+	}
 
 	return nil
 }
@@ -45,13 +54,13 @@ func (svc *basicInventoryService) HandlePolicyUpdatedEvent(ctx context.Context, 
 func (svc *basicInventoryService) HandleOrderCreatedEvent(ctx context.Context, oid, pid uuid.UUID, status string, qty int, aid uint) error {
 	price, err := svc.repo.ReserveProduct(ctx, oid, pid, qty)
 
-	// time.Sleep(5 * time.Second)
 	eventPublisher := svcevent.NewEventPublisher()
+	var eventErr error
 
 	if err != nil {
 		// if there was error in reserving specified product quantity,
 		// fire EventErrReservingProduct event
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventErrReservingProduct,
 			svcevent.EventErrReservingProductPayload{
 				OrderID: oid,
@@ -59,7 +68,7 @@ func (svc *basicInventoryService) HandleOrderCreatedEvent(ctx context.Context, o
 		))
 	} else {
 		// if products were reserved successfully, fire EventProductReserved event
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventProductReserved,
 			svcevent.EventProductReservedPayload{
 				OrderID: oid,
@@ -68,7 +77,14 @@ func (svc *basicInventoryService) HandleOrderCreatedEvent(ctx context.Context, o
 			},
 		))
 	}
-	eventPublisher.Publish(svc.nc)
+
+	svc.cl.LogIfError(ctx, eventErr)
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Error(ctx, fmt.Sprintf(
+			"published events: %v", eventPublisher.GetEventNames()))
+	}
 
 	return err
 }

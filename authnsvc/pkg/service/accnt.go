@@ -55,7 +55,7 @@ func (svc *basicAuthNService) CreateAccount(
 		svc.cl.LogIfError(ctx, eventErr)
 		if eventErr == nil {
 			svc.cl.Debug(ctx, fmt.Sprintf(
-				"published events: %s, %s", svcevent.EventAccountCreated, svcevent.EventUpsertPolicy))
+				"published events: %v", eventPublisher.GetEventNames()))
 		}
 	}
 

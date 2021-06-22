@@ -32,7 +32,8 @@ func (svc *basicAuthzService) UpsertPolicy(ctx context.Context, sub, resourceTyp
 		eventErr = eventPublisher.Publish(svc.nc)
 		svc.cl.LogIfError(ctx, eventErr)
 		if eventErr == nil {
-			svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventPolicyUpdated))
+			svc.cl.Debug(ctx, fmt.Sprintf(
+				"published events: %v", eventPublisher.GetEventNames()))
 		}
 	}
 
@@ -67,7 +68,8 @@ func (svc *basicAuthzService) RemovePolicy(ctx context.Context, sub, resourceTyp
 		eventErr = eventPublisher.Publish(svc.nc)
 		svc.cl.LogIfError(ctx, eventErr)
 		if eventErr == nil {
-			svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventPolicyUpdated))
+			svc.cl.Debug(ctx, fmt.Sprintf(
+				"published events: %v", eventPublisher.GetEventNames()))
 		}
 	}
 
