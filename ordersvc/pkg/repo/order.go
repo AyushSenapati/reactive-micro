@@ -2,6 +2,8 @@ package repo
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -84,7 +86,12 @@ func (b *basicOrderRepo) ListOrder(ctx context.Context, qp *dto.BasicQueryParam)
 
 func (b *basicOrderRepo) ListOrderByIDs(ctx context.Context, oids []uuid.UUID, qp *dto.BasicQueryParam) ([]model.Order, error) {
 	var orders []model.Order
-	err := b.db.Find(&orders, oids).Error
+	values := []string{}
+	for _, oid := range oids {
+		values = append(values, fmt.Sprintf("('%s')", oid.String()))
+	}
+	q := fmt.Sprintf("select * from orders o where o.id = any ( values %s )", strings.Join(values, ","))
+	err := b.db.Debug().Raw(q, values).Scan(&orders).Error
 	return orders, err
 }
 
