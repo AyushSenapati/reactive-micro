@@ -45,9 +45,7 @@ func (m *authzMW) HandlePaymentEvent(ctx context.Context, oid uuid.UUID, aid uin
 func (m *authzMW) CreateOrder(ctx context.Context, pid uuid.UUID, qty int) (uuid.UUID, error) {
 	claim := ctx.Value(kitjwt.JWTClaimsContextKey).(*dto.CustomClaim)
 	reqPolicy := fmt.Sprintf("%v:%s:%s:%v", claim.AccntID, "orders", "post", "*")
-	fmt.Println("request policy:", reqPolicy)
-	if !m.pe.Enforce(reqPolicy, nil) {
-		fmt.Println(ce.ErrInsufficientPerm)
+	if !m.pe.Enforce(ctx, reqPolicy, nil) {
 		return uuid.Nil, ce.ErrInsufficientPerm
 	}
 	return m.next.CreateOrder(ctx, pid, qty)
@@ -58,8 +56,8 @@ func (m *authzMW) ListOrder(ctx context.Context, oids []uuid.UUID, qp *dto.Basic
 	if !ok {
 		return dto.ListOrderResponse{Err: kitjwt.ErrTokenContextMissing}
 	}
-	rids := m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "orders", "*")
-	rids = append(rids, m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "orders", "get")...)
+	rids := m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "orders", "*")
+	rids = append(rids, m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "orders", "get")...)
 	if len(rids) <= 0 {
 		return dto.ListOrderResponse{Err: ce.ErrInsufficientPerm}
 	}

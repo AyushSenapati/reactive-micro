@@ -69,7 +69,7 @@ func (svc *basicOrderService) ListOrder(ctx context.Context, oids []uuid.UUID, q
 	}
 
 	if err != nil {
-		fmt.Println("error getting orders:", err)
+		svc.cl.Error(ctx, fmt.Sprintf("err getting orders [%v]", err))
 		return dto.ListOrderResponse{Err: err}
 	}
 
