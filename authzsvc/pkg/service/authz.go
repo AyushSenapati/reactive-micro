@@ -10,7 +10,7 @@ import (
 
 func (svc *basicAuthzService) UpsertPolicy(ctx context.Context, sub, resourceType, resourceID, action string) error {
 	err := svc.repo.UpsertPolicy(ctx, sub, resourceType, resourceID, action)
-	svc.cl.LogIfError(ctx, fmt.Errorf("upsert policy err [%v]", err))
+	svc.cl.LogIfError(ctx, err)
 
 	// on successful upsert policy operation fire policy updated event
 	// to let other services aware of the changes and update their cache
@@ -46,7 +46,7 @@ func (svc *basicAuthzService) ListPolicy(ctx context.Context, reqObj dto.ListPol
 
 func (svc *basicAuthzService) RemovePolicy(ctx context.Context, sub, resourceType, resourceID, action string) error {
 	err := svc.repo.RemovePolicy(ctx, sub, resourceType, resourceID, action)
-	svc.cl.LogIfError(ctx, fmt.Errorf("error removing policy [%v]", err))
+	svc.cl.LogIfError(ctx, err)
 
 	// on successful removal of a policy fire policy updated event
 	// to let other services aware of the changes and update their cache

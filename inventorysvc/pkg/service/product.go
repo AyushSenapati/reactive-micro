@@ -19,7 +19,7 @@ func (svc *basicInventoryService) CreateProduct(
 	}
 
 	eventPublisher := svcevent.NewEventPublisher()
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr := eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventUpsertPolicy,
 		svcevent.EventUpsertPolicyPayload{
 			Sub:          fmt.Sprint(aid),
@@ -28,7 +28,13 @@ func (svc *basicInventoryService) CreateProduct(
 			Action:       "*",
 		},
 	))
-	eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventUpsertPolicy))
+	}
 
 	return dto.CreateProductResponse{ID: pid, Err: err}
 }

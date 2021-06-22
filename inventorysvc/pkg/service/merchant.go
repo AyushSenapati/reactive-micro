@@ -18,7 +18,7 @@ func (svc *basicInventoryService) CreateMerchant(ctx context.Context, aid uint, 
 
 	// if merchant was registered successfully assign it required permissions
 	eventPublisher := svcevent.NewEventPublisher()
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr := eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventUpsertPolicy,
 		svcevent.EventUpsertPolicyPayload{
 			Sub:          fmt.Sprint(aid),
@@ -27,7 +27,9 @@ func (svc *basicInventoryService) CreateMerchant(ctx context.Context, aid uint, 
 			Action:       "*",
 		},
 	))
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	svc.cl.LogIfError(ctx, eventErr)
+
+	eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventUpsertPolicy,
 		svcevent.EventUpsertPolicyPayload{
 			Sub:          fmt.Sprint(aid),
@@ -36,7 +38,13 @@ func (svc *basicInventoryService) CreateMerchant(ctx context.Context, aid uint, 
 			Action:       "post",
 		},
 	))
-	eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: 2@%s", svcevent.EventUpsertPolicy))
+	}
 
 	return dto.CreateMerchantResponse{ID: mid, Err: err}
 }

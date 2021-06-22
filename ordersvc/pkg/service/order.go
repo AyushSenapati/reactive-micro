@@ -20,7 +20,7 @@ func (svc *basicOrderService) CreateOrder(ctx context.Context, pid uuid.UUID, qt
 
 	// on order create fire order created and upsert policy events
 	eventPublisher := svcevent.NewEventPublisher()
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr := eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventOrderCreated,
 		svcevent.EventOrderCreatedPayload{
 			OrderID:     oid,
@@ -29,9 +29,10 @@ func (svc *basicOrderService) CreateOrder(ctx context.Context, pid uuid.UUID, qt
 			ProductID:   pid,
 			Qty:         qty,
 		}))
+	svc.cl.LogIfError(ctx, eventErr)
 
 	// account must have read permission on newly created order
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventUpsertPolicy,
 		svcevent.EventUpsertPolicyPayload{
 			Sub:          fmt.Sprint(claim.AccntID),
@@ -40,9 +41,10 @@ func (svc *basicOrderService) CreateOrder(ctx context.Context, pid uuid.UUID, qt
 			Action:       "get",
 		},
 	))
+	svc.cl.LogIfError(ctx, eventErr)
 
 	// account must have update permission on newly created order
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventUpsertPolicy,
 		svcevent.EventUpsertPolicyPayload{
 			Sub:          fmt.Sprint(claim.AccntID),
@@ -51,8 +53,14 @@ func (svc *basicOrderService) CreateOrder(ctx context.Context, pid uuid.UUID, qt
 			Action:       "put",
 		},
 	))
+	svc.cl.LogIfError(ctx, eventErr)
 
-	eventPublisher.Publish(svc.nc)
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf(
+			"published events: 1@%s 2@%s", svcevent.EventOrderCreated, svcevent.EventUpsertPolicy))
+	}
 
 	// dont send the event error to the client as
 	// client does not need to know about the event details

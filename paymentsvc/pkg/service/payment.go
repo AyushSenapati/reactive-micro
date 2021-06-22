@@ -22,7 +22,7 @@ func (svc *basicPaymentService) RechargeWallet(ctx context.Context, aid uint, am
 	}
 
 	eventPublisher := svcevent.NewEventPublisher()
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr := eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventUpsertPolicy,
 		svcevent.EventUpsertPolicyPayload{
 			Sub:          fmt.Sprint(aid),
@@ -31,7 +31,13 @@ func (svc *basicPaymentService) RechargeWallet(ctx context.Context, aid uint, am
 			Action:       "get",
 		},
 	))
-	eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventUpsertPolicy))
+	}
 
 	return txid, err
 }

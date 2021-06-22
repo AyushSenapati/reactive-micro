@@ -54,7 +54,7 @@ func (svc *basicAuthNService) CreateAccount(
 		eventErr = eventPublisher.Publish(svc.nc)
 		svc.cl.LogIfError(ctx, eventErr)
 		if eventErr == nil {
-			svc.cl.Info(ctx, fmt.Sprintf(
+			svc.cl.Debug(ctx, fmt.Sprintf(
 				"published events: %s, %s", svcevent.EventAccountCreated, svcevent.EventUpsertPolicy))
 		}
 	}
@@ -76,6 +76,9 @@ func (svc *basicAuthNService) DeleteAccount(ctx context.Context, aid uint) (err 
 	}
 	eventErr = accntDeletedEvent.Publish(svc.nc)
 	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventAccountDeleted))
+	}
 
 	return
 }
