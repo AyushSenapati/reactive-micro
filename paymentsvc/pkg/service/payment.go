@@ -47,7 +47,7 @@ func (svc *basicPaymentService) ListTransactions(ctx context.Context, txids []uu
 	}
 
 	if err != nil {
-		fmt.Println("error getting transactions:", err)
+		svc.cl.Error(ctx, fmt.Sprintf("err getting transactions [%v]", err))
 		return dto.ListTransactionsResponse{Err: err}
 	}
 

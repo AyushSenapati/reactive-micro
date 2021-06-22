@@ -1,5 +1,7 @@
 package policyenforcer
 
+import "context"
+
 // matcherFunc defines how to match request policy with the stored policy
 type matcherFunc func(r, p Policy) bool
 
@@ -13,8 +15,8 @@ func defaultMatcher(r, p Policy) bool {
 }
 
 type PolicyEnforcer interface {
-	Enforce(string, matcherFunc) bool
-	GetResourceIDs(sub, rtype, act string) []string
+	Enforce(ctx context.Context, s string, matcher matcherFunc) bool
+	GetResourceIDs(ctx context.Context, sub, rtype, act string) []string
 }
 
 func NewPolicyEnforcer(ps PolicyStorage) (PolicyEnforcer, error) {
@@ -28,7 +30,7 @@ type policyEnforcer struct {
 	storage PolicyStorage
 }
 
-func (pe *policyEnforcer) Enforce(s string, matcher matcherFunc) bool {
+func (pe *policyEnforcer) Enforce(ctx context.Context, s string, matcher matcherFunc) bool {
 	r, err := getPolicyFromString(s)
 	if err != nil {
 		return false
@@ -38,7 +40,7 @@ func (pe *policyEnforcer) Enforce(s string, matcher matcherFunc) bool {
 		matcher = defaultMatcher
 	}
 
-	for _, p := range pe.storage.GetPolicyForSub(r.sub) {
+	for _, p := range pe.storage.GetPolicyForSub(ctx, r.sub) {
 		if matcher(r, p) {
 			return true
 		}
@@ -46,8 +48,8 @@ func (pe *policyEnforcer) Enforce(s string, matcher matcherFunc) bool {
 	return false
 }
 
-func (pe *policyEnforcer) GetResourceIDs(sub, rtype, act string) (rids []string) {
-	fPolicies := pe.storage.GetPolicyForSub(sub)
+func (pe *policyEnforcer) GetResourceIDs(ctx context.Context, sub, rtype, act string) (rids []string) {
+	fPolicies := pe.storage.GetPolicyForSub(ctx, sub)
 	for _, fp := range fPolicies {
 		if rtype == fp.rtype && act == fp.act {
 			rids = append(rids, fp.rid)

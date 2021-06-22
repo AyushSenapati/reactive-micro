@@ -85,7 +85,7 @@ type EventMeta struct {
 }
 
 func getEventMeta(ctx context.Context, name string) EventMeta {
-	reqID := ctx.Value("X-Request-ID")
+	reqID := ctx.Value(svcconf.C.ReqIDKey)
 	if reqID == nil {
 		reqID = ""
 	}
@@ -113,12 +113,11 @@ func NewEvent(ctx context.Context, name EventName, payload interface{}) (IEvent,
 			return nil, ErrInvalidPayload
 		}
 	} else {
-		fmt.Println("payload checker is not set for event:", name)
+		return nil, fmt.Errorf("payload checker is not set for event: %s", name)
 	}
 
 	e := &Event{Meta: getEventMeta(ctx, string(name)), Payload: payload}
 
-	// return &Event{Meta: meta, Payload: payload}, err
 	return e, nil
 }
 
@@ -131,21 +130,24 @@ func NewEventPublisher() *EventPublisher {
 	return &EventPublisher{}
 }
 
-func (ep *EventPublisher) AddEvent(e IEvent, err error) {
+func (ep *EventPublisher) AddEvent(e IEvent, err error) error {
 	if e == nil || err != nil {
-		fmt.Printf("error adding event to the publisher [err: %v]\n", err)
-		return
+		err := fmt.Errorf("event publisher: err adding event [err: %v]", err)
+		return err
 	}
 	ep.events = append(ep.events, e)
+	return nil
 }
 
-func (ep *EventPublisher) Publish(nc *nats.EncodedConn) {
+// Publish publishes the added events to registered NATS subjects
+// if error occurs while publishing any event, the publisher returns the error
+// immediately instead of try publishing other events
+func (ep *EventPublisher) Publish(nc *nats.EncodedConn) error {
 	for _, e := range ep.events {
 		err := e.Publish(nc)
 		if err != nil {
-			fmt.Printf("error publishing event: %s [%v]\n", e.Name(), err)
-		} else {
-			fmt.Printf("published: %s payload: %v\n", e.Name(), e.GetPayload())
+			return fmt.Errorf("event publisher: error publishing event: %s [%v]", e.Name(), err)
 		}
 	}
+	return nil
 }

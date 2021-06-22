@@ -36,9 +36,7 @@ func (m *authzMW) HandleProductReservedEvent(ctx context.Context, oid uuid.UUID,
 
 func (m *authzMW) RechargeWallet(ctx context.Context, aid uint, amount float32) (uuid.UUID, error) {
 	reqPolicy := fmt.Sprintf("%v:%s:%s:%v", aid, "transactions", "post", "*")
-	fmt.Println("request policy:", reqPolicy)
-	if !m.pe.Enforce(reqPolicy, nil) {
-		fmt.Println(ce.ErrInsufficientPerm)
+	if !m.pe.Enforce(ctx, reqPolicy, nil) {
 		return uuid.Nil, ce.ErrInsufficientPerm
 	}
 	return m.next.RechargeWallet(ctx, aid, amount)
@@ -51,8 +49,8 @@ func (m *authzMW) ListTransactions(ctx context.Context, txids []uuid.UUID, qp *d
 	}
 
 	// get possible transaction IDs that can be retrived by the authenticated subject
-	rids := m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "transactions", "*")
-	rids = append(rids, m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "transactions", "get")...)
+	rids := m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "transactions", "*")
+	rids = append(rids, m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "transactions", "get")...)
 
 	if len(rids) <= 0 {
 		return dto.ListTransactionsResponse{Err: ce.ErrInsufficientPerm}
