@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	svcconf "github.com/AyushSenapati/reactive-micro/authnsvc/conf"
@@ -30,10 +29,14 @@ func (svc *basicAuthNService) GenToken(ctx context.Context, req dto.LoginRequest
 
 	accessToken, err := svc.genAccessToken(accntObj.ID, accntObj.Email, accntObj.Role.Name)
 	if err != nil {
+		svc.cl.Error(ctx, err)
 		return dto.LoginResponse{Err: err}
 	}
 
 	refreshToken, err := svc.genRefreshToken(accntObj.ID, accntObj.Email, accntObj.Role.Name)
+	if err != nil {
+		svc.cl.Error(ctx, err)
+	}
 
 	return dto.LoginResponse{AccessToken: accessToken, RefreshToken: refreshToken, Err: err}
 }
@@ -105,6 +108,7 @@ func (svc *basicAuthNService) RenewAccessToken(ctx context.Context, refreshToken
 	}
 	accessToken, err := svc.genAccessToken(claim.AccntID, claim.Email, claim.Role)
 	if err != nil {
+		svc.cl.Error(ctx, err)
 		return "", err
 	}
 	return accessToken, nil
@@ -126,7 +130,7 @@ func (svc *basicAuthNService) RevokeToken(ctx context.Context, refreshToken stri
 		exp := time.Until(timeUnix)
 		isBlacklisted, err := svc.authnrepo.Blacklist(ctx, claim.Id, exp)
 		if err != nil {
-			fmt.Println(err)
+			svc.cl.Error(ctx, err)
 		}
 		return isBlacklisted
 	}

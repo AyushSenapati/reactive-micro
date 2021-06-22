@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	svcconf "github.com/AyushSenapati/reactive-micro/authnsvc/conf"
 	svcep "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/endpoint"
 	svcpe "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/lib/policy-enforcer"
+	cl "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/logger"
 	svcrepo "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/repo"
 	"github.com/AyushSenapati/reactive-micro/authnsvc/pkg/service"
 	httptransport "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/transport/http"
@@ -28,7 +30,7 @@ import (
 	"gorm.io/gorm"
 )
 
-var fs = flag.NewFlagSet("user", flag.ExitOnError)
+var fs = flag.NewFlagSet("authnsvc", flag.ExitOnError)
 var httpAddr = fs.String("http-addr", "0.0.0.0:8081", "HTTP listen address")
 
 // holds the name of the protected methods
@@ -43,6 +45,7 @@ var allResourceTypes = []string{"accounts", "roles"}
 func Run() {
 	fs.Parse(os.Args[1:])
 
+	ctx := context.Background()
 	confObj, err := svcconf.Load("")
 
 	if err != nil {
@@ -53,24 +56,35 @@ func Run() {
 	serializedConf, _ := json.Marshal(confObj)
 	fmt.Println(string(serializedConf))
 
+	logger := cl.NewLogger(confObj.Env)
+	logger.Configure(
+		cl.WithSvcName(confObj.SVCName),
+		cl.WithTimeStamp(),
+	)
+
 	// Get NATS json encoded connection object
 	nc := getNATSEncodedConn(confObj)
 	defer func() {
 		nc.Close()
-		fmt.Println("nats: disconnected")
+		logger.Info(ctx, "nats: disconnected")
 	}()
+	logger.Info(ctx, "nats: connected")
 
 	// get gorm client to setup service repo
 	db := getDBConn(confObj.GetDSN())
 
 	// initialise service repo
 	repoObj := svcrepo.NewBasicUserRepo(db)
+	if repoObj == nil {
+		logger.Info(ctx, "error in initialising service repository")
+		return
+	}
 
 	// intialise policy enforcer
 	c := cache.New(5*time.Minute, 10*time.Minute)
 	ps, err := svcpe.NewCachedPolicyStorageMW(confObj.AuthzSvcUrl, allResourceTypes, c)
 	if err != nil {
-		fmt.Println("error initialising policy storage. err:", err)
+		logger.Error(ctx, fmt.Sprintf("error initialising policy storage [%v]", err))
 		return
 	}
 
@@ -80,9 +94,9 @@ func Run() {
 		service.WithNATSEncodedConn(nc),
 		service.WithPolicyStorage(ps),
 	}
-	svc := service.New(getServiceMiddleware(confObj, ps), svcConfigs...)
+	svc := service.New(logger, getServiceMiddleware(confObj, ps), svcConfigs...)
 	if svc == nil {
-		fmt.Println("error initialising service")
+		logger.Error(ctx, "error initialising service")
 		return
 	}
 
@@ -90,12 +104,12 @@ func Run() {
 	eps := svcep.New(svc, getEndpointMW(confObj))
 
 	g := &run.Group{}
-	initEventHandler(svc, nc, g)
-	initHttpHandler(eps, g)
+	initEventHandler(logger, svc, nc, g)
+	initHttpHandler(logger, eps, g)
 	initCancelInterrupt(g)
 	err = g.Run()
 	if err != nil {
-		fmt.Println("final err:", err)
+		logger.Error(ctx, fmt.Sprintf("final err: %v", err))
 	}
 }
 
@@ -127,8 +141,9 @@ func getEndpointMW(c *svcconf.Config) (mw map[string][]kitep.Middleware) {
 	return
 }
 
-func initHttpHandler(endpoints svcep.Endpoints, g *run.Group) {
+func initHttpHandler(logger *cl.CustomLogger, endpoints svcep.Endpoints, g *run.Group) {
 	options := defaultHttpOptions()
+
 	// Add your http options here
 
 	// Extract token from the request header and put into the context
@@ -140,16 +155,16 @@ func initHttpHandler(endpoints svcep.Endpoints, g *run.Group) {
 	httpHandler := httptransport.NewHTTPHandler(endpoints, options)
 	nl, err := net.Listen("tcp", *httpAddr)
 	if err != nil {
-		fmt.Println("transport err: err during listing on specified address")
+		logger.Error(context.TODO(), "transport [HTTP]: err during listing on specified address")
 		return
 	}
 	g.Add(func() error {
-		fmt.Println("listening at", *httpAddr)
+		logger.Info(context.TODO(), fmt.Sprintf("transport [HTTP]: listening at %s", *httpAddr))
 		return http.Serve(nl, httpHandler)
 	}, func(err error) {
-		fmt.Println("err:", err)
+		logger.Error(context.TODO(), fmt.Sprintf("transport [HTTP]: %v", err))
 		nl.Close()
-		fmt.Println("closed the HTTP listener")
+		logger.Info(context.TODO(), "transport [HTTP]: closed the HTTP listener")
 	})
 }
 
@@ -169,8 +184,8 @@ func initCancelInterrupt(g *run.Group) {
 	})
 }
 
-func initEventHandler(svc service.IAuthNService, nc *nats.EncodedConn, g *run.Group) {
-	eventHandler := natstransport.NewEventHandler(nc, svc)
+func initEventHandler(logger *cl.CustomLogger, svc service.IAuthNService, nc *nats.EncodedConn, g *run.Group) {
+	eventHandler := natstransport.NewEventHandler(logger, nc, svc)
 	g.Add(eventHandler.Execute, eventHandler.Interrupt)
 }
 
@@ -192,6 +207,5 @@ func getNATSEncodedConn(c *svcconf.Config) *nats.EncodedConn {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("nats: connected")
 	return encodedConn
 }

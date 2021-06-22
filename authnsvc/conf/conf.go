@@ -21,6 +21,7 @@ var (
 	C = &Config{}
 
 	defaults = map[string]interface{}{
+		"req_id_key": "X-Request-ID",
 		"auth": map[string]interface{}{
 			"secret_key":        "topsecret",
 			"issuer":            "Reactive Micro Org",
@@ -36,6 +37,7 @@ var (
 type Config struct {
 	Env string `mapstructure:"env"`
 
+	ReqIDKey    string `mapstructure:"req_id_key"`
 	SVCName     string `mapstructure:"svc_name"`
 	NATSUrl     string `mapstructure:"nats_url"`
 	AuthzSvcUrl string `mapstructure:"authzsvc_url"`

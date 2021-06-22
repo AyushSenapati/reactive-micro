@@ -7,6 +7,7 @@ import (
 
 	"github.com/AyushSenapati/reactive-micro/ordersvc/pkg/dto"
 	svcpe "github.com/AyushSenapati/reactive-micro/ordersvc/pkg/lib/policy-enforcer"
+	cl "github.com/AyushSenapati/reactive-micro/ordersvc/pkg/logger"
 	"github.com/AyushSenapati/reactive-micro/ordersvc/pkg/repo"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
@@ -28,6 +29,7 @@ type IOrderService interface {
 }
 
 type basicOrderService struct {
+	cl   *cl.CustomLogger
 	repo repo.OrderRepository
 	nc   *nats.EncodedConn
 	ps   svcpe.PolicyStorage
@@ -69,12 +71,13 @@ func WithPolicyStorage(ps svcpe.PolicyStorage) SvcConf {
 
 // New returns a OrderService implementation with
 // all of the expected config/middleware wired in.
-func New(mws []Middleware, svcconfs ...SvcConf) IOrderService {
+func New(logger *cl.CustomLogger, mws []Middleware, svcconfs ...SvcConf) IOrderService {
 	svc := NewBasicOrderService()
+	svc.cl = logger
 	for _, configure := range svcconfs {
 		if configure != nil {
 			if err := configure(svc); err != nil {
-				fmt.Println("svc error:", err)
+				logger.Error(context.TODO(), fmt.Sprintf("svc err: %v", err))
 				return nil
 			}
 		}
@@ -88,6 +91,6 @@ func New(mws []Middleware, svcconfs ...SvcConf) IOrderService {
 		s = m(s)
 		counter++
 	}
-	fmt.Println("service middlewares configured:", counter)
+
 	return s
 }

@@ -44,8 +44,7 @@ func (m *authzMW) HandleOrderCanceledEvent(ctx context.Context, rpid uuid.UUID) 
 
 func (m *authzMW) CreateMerchant(ctx context.Context, aid uint, name string) dto.CreateMerchantResponse {
 	reqPolicy := fmt.Sprintf("%v:%s:%s:%v", aid, "merchants", "post", "*")
-	fmt.Println("request policy:", reqPolicy)
-	if !m.pe.Enforce(reqPolicy, nil) {
+	if !m.pe.Enforce(ctx, reqPolicy, nil) {
 		fmt.Println(ce.ErrInsufficientPerm)
 		return dto.CreateMerchantResponse{Err: ce.ErrInsufficientPerm}
 	}
@@ -57,8 +56,8 @@ func (m *authzMW) ListMerchant(ctx context.Context, mids []uuid.UUID) dto.ListMe
 	if !ok {
 		return dto.ListMerchantResponse{Err: kitjwt.ErrTokenContextMissing}
 	}
-	rids := m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "merchants", "*")
-	rids = append(rids, m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "merchants", "get")...)
+	rids := m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "merchants", "*")
+	rids = append(rids, m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "merchants", "get")...)
 	if len(rids) <= 0 {
 		return dto.ListMerchantResponse{Err: ce.ErrInsufficientPerm}
 	}
@@ -78,9 +77,7 @@ func (m *authzMW) ListMerchant(ctx context.Context, mids []uuid.UUID) dto.ListMe
 
 func (m *authzMW) CreateProduct(ctx context.Context, aid uint, mid uuid.UUID, name, desc string, qty int, price float32) dto.CreateProductResponse {
 	reqPolicy := fmt.Sprintf("%v:%s:%s:%v", aid, "products", "post", "*")
-	fmt.Println("request policy:", reqPolicy)
-	if !m.pe.Enforce(reqPolicy, nil) {
-		fmt.Println(ce.ErrInsufficientPerm)
+	if !m.pe.Enforce(ctx, reqPolicy, nil) {
 		return dto.CreateProductResponse{Err: ce.ErrInsufficientPerm}
 	}
 	return m.next.CreateProduct(ctx, aid, mid, name, desc, qty, price)
@@ -96,8 +93,8 @@ func (m *authzMW) ListProduct(ctx context.Context, pids []uuid.UUID, qp *dto.Bas
 		return m.next.ListProduct(ctx, []uuid.UUID{}, qp)
 	}
 	// sellers are allowed to view which they have created
-	rids := m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "products", "*")
-	rids = append(rids, m.pe.GetResourceIDs(fmt.Sprint(claim.AccntID), "products", "get")...)
+	rids := m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "products", "*")
+	rids = append(rids, m.pe.GetResourceIDs(ctx, fmt.Sprint(claim.AccntID), "products", "get")...)
 	if len(rids) <= 0 {
 		return dto.ListProductResponse{Err: ce.ErrInsufficientPerm}
 	}

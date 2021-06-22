@@ -22,7 +22,7 @@ func (svc *basicPaymentService) RechargeWallet(ctx context.Context, aid uint, am
 	}
 
 	eventPublisher := svcevent.NewEventPublisher()
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr := eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventUpsertPolicy,
 		svcevent.EventUpsertPolicyPayload{
 			Sub:          fmt.Sprint(aid),
@@ -31,7 +31,13 @@ func (svc *basicPaymentService) RechargeWallet(ctx context.Context, aid uint, am
 			Action:       "get",
 		},
 	))
-	eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", eventPublisher.GetEventNames()))
+	}
 
 	return txid, err
 }
@@ -47,7 +53,7 @@ func (svc *basicPaymentService) ListTransactions(ctx context.Context, txids []uu
 	}
 
 	if err != nil {
-		fmt.Println("error getting transactions:", err)
+		svc.cl.Error(ctx, fmt.Sprintf("err getting transactions [%v]", err))
 		return dto.ListTransactionsResponse{Err: err}
 	}
 

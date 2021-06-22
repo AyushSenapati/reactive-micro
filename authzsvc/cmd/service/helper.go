@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	svcconf "github.com/AyushSenapati/reactive-micro/authnsvc/conf"
-	httptransport "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/transport/http"
+	svcconf "github.com/AyushSenapati/reactive-micro/authzsvc/conf"
+	httptransport "github.com/AyushSenapati/reactive-micro/authzsvc/pkg/transport/http"
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 

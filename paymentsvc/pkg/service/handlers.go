@@ -44,18 +44,10 @@ func (svc *basicPaymentService) HandleProductReservedEvent(ctx context.Context, 
 
 	// time.Sleep(10 * time.Second)
 	eventPublisher := svcevent.NewEventPublisher()
-	eventPublisher.AddEvent(svcevent.NewEvent(
-		ctx, svcevent.EventUpsertPolicy,
-		svcevent.EventUpsertPolicyPayload{
-			Sub:          fmt.Sprint(aid),
-			ResourceType: "transactions",
-			ResourceID:   txid.String(),
-			Action:       "get",
-		},
-	))
+	var eventErr error
 
 	if err != nil {
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventPayment,
 			svcevent.EventPaymentPayload{
 				OrderID: oid,
@@ -63,8 +55,20 @@ func (svc *basicPaymentService) HandleProductReservedEvent(ctx context.Context, 
 				Status:  "payment_failed",
 			},
 		))
+		svc.cl.LogIfError(ctx, eventErr)
 	} else {
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
+			ctx, svcevent.EventUpsertPolicy,
+			svcevent.EventUpsertPolicyPayload{
+				Sub:          fmt.Sprint(aid),
+				ResourceType: "transactions",
+				ResourceID:   txid.String(),
+				Action:       "get",
+			},
+		))
+		svc.cl.LogIfError(ctx, eventErr)
+
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventPayment,
 			svcevent.EventPaymentPayload{
 				OrderID: oid,
@@ -72,9 +76,14 @@ func (svc *basicPaymentService) HandleProductReservedEvent(ctx context.Context, 
 				Status:  "payment_successful",
 			},
 		))
+		svc.cl.LogIfError(ctx, eventErr)
 	}
 
-	eventPublisher.Publish(svc.nc)
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: %v", eventPublisher.GetEventNames()))
+	}
 
 	return err
 }

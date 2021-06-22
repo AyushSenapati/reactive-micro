@@ -2,6 +2,7 @@ package policyenforcer
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/imdario/mergo"
 	"github.com/patrickmn/go-cache"
+
+	svcconf "github.com/AyushSenapati/reactive-micro/inventorysvc/conf"
 )
 
 type Policy struct {
@@ -54,7 +57,6 @@ func (ep *ePolicy) upsert(fp Policy) error {
 	err := mergo.MapWithOverwrite(ep, fep, mergo.WithAppendSlice)
 	if err != nil {
 		msg := fmt.Sprintf("merging fep error. [%v]", err)
-		fmt.Println(msg)
 		return errors.New(msg)
 	}
 	return nil
@@ -119,7 +121,7 @@ type getPoliciesRequest struct {
 type PolicyStorageMW func(PolicyStorage) PolicyStorage
 
 type PolicyStorage interface {
-	GetPolicyForSub(sub string) []Policy
+	GetPolicyForSub(ctx context.Context, sub string) []Policy
 	UpdatePolicy(method, sub, rtype, rid, act string) error
 }
 
@@ -143,7 +145,7 @@ func NewCachedPolicyStorageMW(url string, rtype []string, c *cache.Cache) (Polic
 	}, nil
 }
 
-func (cps *cachedPolicyStorage) FetchPolicyForSub(sub string) *ePolicy {
+func (cps *cachedPolicyStorage) FetchPolicyForSub(ctx context.Context, sub string) *ePolicy {
 	sPolicies := []string{}
 	client := &http.Client{}
 
@@ -152,6 +154,8 @@ func (cps *cachedPolicyStorage) FetchPolicyForSub(sub string) *ePolicy {
 		body := &getPoliciesRequest{Sub: sub, ResourceType: rtype}
 		jsonbody, _ := json.Marshal(body)
 		req, _ := http.NewRequest("GET", cps.url, bytes.NewBuffer(jsonbody))
+		reqID := ctx.Value(svcconf.C.ReqIDKey).(string)
+		req.Header.Set(svcconf.C.ReqIDKey, reqID)
 		resp, err := client.Do(req)
 		if err != nil {
 			fmt.Println(err)
@@ -174,13 +178,13 @@ func (cps *cachedPolicyStorage) FetchPolicyForSub(sub string) *ePolicy {
 	return ep
 }
 
-func (cps *cachedPolicyStorage) GetPolicyForSub(sub string) (fPolicies []Policy) {
+func (cps *cachedPolicyStorage) GetPolicyForSub(ctx context.Context, sub string) (fPolicies []Policy) {
 	cachedEPolicy, found := cps.cache.Get(sub) // gets ePolicy obj
 
 	// if entry not found for the subject get policies from authz svc and cache it
 	if !found {
 		fmt.Println("cache miss for sub:", sub)
-		ep := cps.FetchPolicyForSub(sub)
+		ep := cps.FetchPolicyForSub(ctx, sub)
 		fPolicies := ep.fpolicies(sub)
 		if len(fPolicies) > 0 {
 			fmt.Println("caching policies for sub:", sub)

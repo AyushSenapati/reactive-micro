@@ -24,10 +24,17 @@ func (svc *basicOrderService) HandleAccountCreatedEvent(ctx context.Context, acc
 			Action:       "post",
 		})
 	if err != nil {
-		return &svcevent.ErrNewEvent{Name: svcevent.EventUpsertPolicy}
+		err = &svcevent.ErrNewEvent{Name: svcevent.EventUpsertPolicy}
+		svc.cl.Error(ctx, err)
+		return err
 	}
 
 	err = authzEvent.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, err)
+	if err == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventUpsertPolicy))
+	}
+
 	return err
 }
 
@@ -45,13 +52,15 @@ func (svc *basicOrderService) HandleProductReservedEvent(ctx context.Context, oi
 
 func (svc *basicOrderService) HandlePaymentEvent(ctx context.Context, oid uuid.UUID, aid uint, status string) error {
 	eventPublisher := svcevent.NewEventPublisher()
+	var eventErr error
 
 	if status == "payment_successful" {
 		err := svc.repo.UpdateOrderStatus(ctx, oid, model.OrderStatusPaid)
 		if err != nil {
+			svc.cl.Error(ctx, err)
 			return err
 		}
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventOrderApproved,
 			svcevent.EventOrderApprovedPayload{
 				OID:     oid,
@@ -61,9 +70,10 @@ func (svc *basicOrderService) HandlePaymentEvent(ctx context.Context, oid uuid.U
 	} else {
 		err := svc.repo.UpdateOrderStatus(ctx, oid, model.OrderStatusFailed)
 		if err != nil {
+			svc.cl.Error(ctx, err)
 			return err
 		}
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventOrderCanceled,
 			svcevent.EventOrderCanceledPayload{
 				OID:     oid,
@@ -72,6 +82,12 @@ func (svc *basicOrderService) HandlePaymentEvent(ctx context.Context, oid uuid.U
 		))
 	}
 
-	eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: %v", eventPublisher.GetEventNames()))
+	}
+
 	return nil
 }

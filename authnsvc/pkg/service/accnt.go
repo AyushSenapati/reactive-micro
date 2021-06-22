@@ -17,6 +17,7 @@ func (svc *basicAuthNService) CreateAccount(
 	hashedPswd, err := util.HashPassword(accnt.Password)
 	if err != nil {
 		resp.Err = ce.ErrApplication
+		svc.cl.Error(ctx, err)
 		return
 	}
 
@@ -34,21 +35,28 @@ func (svc *basicAuthNService) CreateAccount(
 	// if account creation was successful fire account created and create policy events
 	if err == nil && uid > 0 {
 		eventPublisher := svcevent.NewEventPublisher()
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr := eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventAccountCreated,
 			svcevent.EventAccountCreatedPayload{
 				AccntID: resp.UserID,
 				Role:    accnt.Role}))
+		svc.cl.LogIfError(ctx, eventErr)
 
-		eventPublisher.AddEvent(svcevent.NewEvent(
+		eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 			ctx, svcevent.EventUpsertPolicy,
 			svcevent.EventUpsertPolicyPayload{
 				Sub:          fmt.Sprint(uid),
 				ResourceType: "accounts",
 				ResourceID:   fmt.Sprint(uid),
 				Action:       "*"}))
+		svc.cl.LogIfError(ctx, eventErr)
 
-		eventPublisher.Publish(svc.nc)
+		eventErr = eventPublisher.Publish(svc.nc)
+		svc.cl.LogIfError(ctx, eventErr)
+		if eventErr == nil {
+			svc.cl.Debug(ctx, fmt.Sprintf(
+				"published events: %v", eventPublisher.GetEventNames()))
+		}
 	}
 
 	return
@@ -57,17 +65,21 @@ func (svc *basicAuthNService) CreateAccount(
 func (svc *basicAuthNService) DeleteAccount(ctx context.Context, aid uint) (err error) {
 	err = svc.accntrepo.DeleteUser(ctx, aid)
 	if err != nil {
-		fmt.Println("failed deleting account:", aid)
+		svc.cl.Error(ctx, fmt.Sprintf("error while deleting account: %d", aid))
 		return
 	}
 	accntDeletedEvent, eventErr := svcevent.NewEvent(
 		ctx, svcevent.EventAccountDeleted, svcevent.EventAccountDeletedPayload{AccntID: aid})
 	if eventErr != nil {
-		fmt.Println(eventErr)
+		svc.cl.Error(ctx, fmt.Sprintf("error creating event [%v]", eventErr))
 		return
 	}
-	accntDeletedEvent.Publish(svc.nc)
-	fmt.Println("event published")
+	eventErr = accntDeletedEvent.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf("published events: %s", svcevent.EventAccountDeleted))
+	}
+
 	return
 }
 
@@ -81,7 +93,7 @@ func (svc *basicAuthNService) ListAccount(ctx context.Context, aids []uint, qp *
 	}
 
 	if err != nil {
-		fmt.Println("error getting accounts:", err)
+		svc.cl.Error(ctx, fmt.Sprintf("err getting accounts [%v]", err))
 		return dto.ListAccountResponse{Err: err}
 	}
 

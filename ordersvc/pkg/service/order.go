@@ -20,7 +20,7 @@ func (svc *basicOrderService) CreateOrder(ctx context.Context, pid uuid.UUID, qt
 
 	// on order create fire order created and upsert policy events
 	eventPublisher := svcevent.NewEventPublisher()
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr := eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventOrderCreated,
 		svcevent.EventOrderCreatedPayload{
 			OrderID:     oid,
@@ -29,9 +29,10 @@ func (svc *basicOrderService) CreateOrder(ctx context.Context, pid uuid.UUID, qt
 			ProductID:   pid,
 			Qty:         qty,
 		}))
+	svc.cl.LogIfError(ctx, eventErr)
 
 	// account must have read permission on newly created order
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventUpsertPolicy,
 		svcevent.EventUpsertPolicyPayload{
 			Sub:          fmt.Sprint(claim.AccntID),
@@ -40,9 +41,10 @@ func (svc *basicOrderService) CreateOrder(ctx context.Context, pid uuid.UUID, qt
 			Action:       "get",
 		},
 	))
+	svc.cl.LogIfError(ctx, eventErr)
 
 	// account must have update permission on newly created order
-	eventPublisher.AddEvent(svcevent.NewEvent(
+	eventErr = eventPublisher.AddEvent(svcevent.NewEvent(
 		ctx, svcevent.EventUpsertPolicy,
 		svcevent.EventUpsertPolicyPayload{
 			Sub:          fmt.Sprint(claim.AccntID),
@@ -51,8 +53,14 @@ func (svc *basicOrderService) CreateOrder(ctx context.Context, pid uuid.UUID, qt
 			Action:       "put",
 		},
 	))
+	svc.cl.LogIfError(ctx, eventErr)
 
-	eventPublisher.Publish(svc.nc)
+	eventErr = eventPublisher.Publish(svc.nc)
+	svc.cl.LogIfError(ctx, eventErr)
+	if eventErr == nil {
+		svc.cl.Debug(ctx, fmt.Sprintf(
+			"published events: %v", eventPublisher.GetEventNames()))
+	}
 
 	// dont send the event error to the client as
 	// client does not need to know about the event details
@@ -69,7 +77,7 @@ func (svc *basicOrderService) ListOrder(ctx context.Context, oids []uuid.UUID, q
 	}
 
 	if err != nil {
-		fmt.Println("error getting orders:", err)
+		svc.cl.Error(ctx, fmt.Sprintf("err getting orders [%v]", err))
 		return dto.ListOrderResponse{Err: err}
 	}
 
@@ -82,5 +90,6 @@ func (svc *basicOrderService) ListOrder(ctx context.Context, oids []uuid.UUID, q
 			ProdName: "", // call inventory svc to get product details
 		})
 	}
+
 	return dto.ListOrderResponse{Orders: orders}
 }

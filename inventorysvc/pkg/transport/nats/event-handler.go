@@ -1,24 +1,27 @@
 package nats
 
 import (
+	"context"
 	"errors"
-	"fmt"
 
+	cl "github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/logger"
 	"github.com/AyushSenapati/reactive-micro/inventorysvc/pkg/service"
 	"github.com/nats-io/nats.go"
 )
 
 type EventHandler struct {
+	cl           *cl.CustomLogger
 	nc           *nats.EncodedConn
 	handlers     *EventHandlerFuncs
 	subcriptions []*nats.Subscription
 	cancel       chan struct{}
 }
 
-func NewEventHandler(nc *nats.EncodedConn, svc service.IInventoryService) *EventHandler {
+func NewEventHandler(logger *cl.CustomLogger, nc *nats.EncodedConn, svc service.IInventoryService) *EventHandler {
 	return &EventHandler{
+		cl:           logger,
 		nc:           nc,
-		handlers:     initEventHandlerFuncs(svc),
+		handlers:     initEventHandlerFuncs(logger, svc),
 		subcriptions: []*nats.Subscription{},
 		cancel:       make(chan struct{}),
 	}
@@ -34,18 +37,18 @@ func (eh *EventHandler) Execute() error {
 	}
 	eh.subcriptions = s
 
-	fmt.Println("event handler: initialised")
+	eh.cl.Info(context.TODO(), "event handler: initialised")
 	<-eh.cancel
-	fmt.Println("event handler: closed")
+	eh.cl.Info(context.TODO(), "event handler: closed")
 	return nil
 }
 
 func (eh *EventHandler) Interrupt(err error) {
-	fmt.Println("event handler: cleanup started")
+	eh.cl.Info(context.TODO(), "event handler: cleanup started")
 	close(eh.cancel)
 	for _, s := range eh.subcriptions {
 		s.Unsubscribe()
 	}
 	eh.nc.Close()
-	fmt.Println("event handler: cleanup completed")
+	eh.cl.Info(context.TODO(), "event handler: cleanup completed")
 }

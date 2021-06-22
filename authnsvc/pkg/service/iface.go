@@ -7,6 +7,7 @@ import (
 
 	"github.com/AyushSenapati/reactive-micro/authnsvc/pkg/dto"
 	svcpe "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/lib/policy-enforcer"
+	cl "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/logger"
 	"github.com/AyushSenapati/reactive-micro/authnsvc/pkg/repo"
 	"github.com/nats-io/nats.go"
 )
@@ -28,6 +29,7 @@ type IAuthNService interface {
 }
 
 type basicAuthNService struct {
+	cl        *cl.CustomLogger
 	accntrepo repo.UserRepository
 	authnrepo repo.AuthNRepository
 	nc        *nats.EncodedConn
@@ -69,12 +71,13 @@ func WithPolicyStorage(ps svcpe.PolicyStorage) SvcConf {
 }
 
 // New returns a Authn service implementation with all of the expected middlewares wired in.
-func New(mws []Middleware, SvcConfs ...SvcConf) IAuthNService {
+func New(logger *cl.CustomLogger, mws []Middleware, SvcConfs ...SvcConf) IAuthNService {
 	svc := NewBasicAuthNService()
+	svc.cl = logger
 	for _, configure := range SvcConfs {
 		if configure != nil {
 			if err := configure(svc); err != nil {
-				fmt.Println("svc error:", err)
+				logger.Error(context.TODO(), fmt.Sprintf("svc err: %v", err))
 				return nil
 			}
 		}
@@ -87,6 +90,6 @@ func New(mws []Middleware, SvcConfs ...SvcConf) IAuthNService {
 		s = m(s)
 		counter++
 	}
-	fmt.Println("service middlewares configured:", counter)
+
 	return s
 }

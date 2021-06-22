@@ -1,5 +1,6 @@
 {
     "env": "dev",
+    "req_id_key": "X-Request-ID",
     "svc_name": "reactive-micro-paymentsvc-svc",
     "nats_url": "localhost:4222",
     "authzsvc_url": "http://localhost:8083/v1/authzsvc/policies",

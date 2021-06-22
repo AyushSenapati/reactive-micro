@@ -12,7 +12,6 @@ import (
 )
 
 type AuthzRepo interface {
-	Disconnect() error
 	UpsertPolicy(ctx context.Context, sub, resourceType, resourceID, action string) error
 	ListPolicy(ctx context.Context, sub, resourceType string) []string
 	RemovePolicy(ctx context.Context, sub, resourceType, resourceID, action string) error
@@ -29,17 +28,6 @@ func NewAuthzRepo(client *mongo.Client) AuthzRepo {
 		return nil
 	}
 	return &basicAuthzRepo{client: client, db: client.Database("authzdb")}
-}
-
-func (b *basicAuthzRepo) Disconnect() error {
-	if b.client == nil {
-		return nil
-	}
-	err := b.client.Disconnect(context.Background())
-	if err == nil {
-		fmt.Println("mongo: disconnected")
-	}
-	return err
 }
 
 type policyDoc struct {
@@ -158,11 +146,9 @@ func (b *basicAuthzRepo) RemovePolicyBySub(ctx context.Context, sub string) erro
 	result, err := policiesCollection.DeleteOne(ctx, bson.M{"sub": sub})
 	if result.DeletedCount <= 0 {
 		if err != nil {
-			fmt.Printf("mongo: remove policy by sub err [%v]\n", err)
 			return err
 		}
 		err = fmt.Errorf("mongo: policy for sub-%s not found", sub)
-		fmt.Println(err)
 		return err
 	}
 	return nil
