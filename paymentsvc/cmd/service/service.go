@@ -207,6 +207,5 @@ func getNATSEncodedConn(c *svcconf.Config) *nats.EncodedConn {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("nats: connected")
 	return encodedConn
 }

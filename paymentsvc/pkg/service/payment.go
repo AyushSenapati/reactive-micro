@@ -47,9 +47,9 @@ func (svc *basicPaymentService) ListTransactions(ctx context.Context, txids []uu
 	var err error
 
 	if len(txids) > 0 {
-		txObjs, err = svc.repo.ListTxsByIDs(ctx, txids, qp)
+		txObjs, err = svc.repo.ListTxnsByIDs(ctx, txids, qp)
 	} else {
-		txObjs, err = svc.repo.ListTxs(ctx, qp)
+		txObjs, err = svc.repo.ListTxns(ctx, qp)
 	}
 
 	if err != nil {

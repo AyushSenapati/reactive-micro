@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -17,8 +19,8 @@ var ErrInsufficientBalance = errors.New("insufficient balance")
 type PaymentRepository interface {
 	EnableWallet(ctx context.Context, aid uint, balance float32) error
 	ExecuteTX(ctx context.Context, aid uint, amount float32, isCredit bool) (uuid.UUID, error)
-	ListTxsByIDs(ctx context.Context, txids []uuid.UUID, qp *dto.BasicQueryParam) ([]model.Transaction, error)
-	ListTxs(ctx context.Context, qp *dto.BasicQueryParam) ([]model.Transaction, error)
+	ListTxnsByIDs(ctx context.Context, txids []uuid.UUID, qp *dto.BasicQueryParam) ([]model.Transaction, error)
+	ListTxns(ctx context.Context, qp *dto.BasicQueryParam) ([]model.Transaction, error)
 }
 
 type basicPaymentRepo struct {
@@ -99,7 +101,7 @@ func (b *basicPaymentRepo) ExecuteTX(ctx context.Context, aid uint, amount float
 	return txid, err
 }
 
-func (b *basicPaymentRepo) ListTxs(ctx context.Context, qp *dto.BasicQueryParam) (txs []model.Transaction, err error) {
+func (b *basicPaymentRepo) ListTxns(ctx context.Context, qp *dto.BasicQueryParam) (txs []model.Transaction, err error) {
 	if qp != nil {
 		err = b.db.Scopes(
 			orderBy(qp.Filter.OrederBy),
@@ -111,7 +113,14 @@ func (b *basicPaymentRepo) ListTxs(ctx context.Context, qp *dto.BasicQueryParam)
 	return
 }
 
-func (b *basicPaymentRepo) ListTxsByIDs(ctx context.Context, txids []uuid.UUID, qp *dto.BasicQueryParam) (txs []model.Transaction, err error) {
-	err = b.db.Find(&txs, txids).Error
+func (b *basicPaymentRepo) ListTxnsByIDs(ctx context.Context, txnids []uuid.UUID, qp *dto.BasicQueryParam) (txns []model.Transaction, err error) {
+	values := []string{}
+	for _, txnid := range txnids {
+		values = append(values, fmt.Sprintf("('%s')", txnid.String()))
+	}
+	q := fmt.Sprintf(
+		"select * from transactions t where t.id = any ( values %s )",
+		strings.Join(values, ","))
+	err = b.db.Debug().Raw(q, values).Scan(&txns).Error
 	return
 }
