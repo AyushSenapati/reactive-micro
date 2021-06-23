@@ -7,7 +7,6 @@ import (
 	"github.com/AyushSenapati/reactive-micro/authnsvc/pkg/dto"
 	ce "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/error"
 	svcevent "github.com/AyushSenapati/reactive-micro/authnsvc/pkg/event"
-	"github.com/AyushSenapati/reactive-micro/authnsvc/pkg/model"
 	"github.com/AyushSenapati/reactive-micro/authnsvc/pkg/util"
 )
 
@@ -84,12 +83,16 @@ func (svc *basicAuthNService) DeleteAccount(ctx context.Context, aid uint) (err 
 }
 
 func (svc *basicAuthNService) ListAccount(ctx context.Context, aids []uint, qp *dto.BasicQueryParam) dto.ListAccountResponse {
-	var accntObjs []model.User
-	var err error
+	var (
+		accnts   []dto.GetAccountResponse
+		err      error
+		pageInfo *dto.Page
+	)
+
 	if len(aids) > 0 {
-		accntObjs, err = svc.accntrepo.ListAccountsByIDs(ctx, aids, qp)
+		accnts, err = svc.accntrepo.ListAccountsByIDs(ctx, aids, qp)
 	} else {
-		accntObjs, err = svc.accntrepo.ListUser(ctx, qp)
+		accnts, pageInfo, err = svc.accntrepo.ListUser(ctx, qp)
 	}
 
 	if err != nil {
@@ -97,14 +100,5 @@ func (svc *basicAuthNService) ListAccount(ctx context.Context, aids []uint, qp *
 		return dto.ListAccountResponse{Err: err}
 	}
 
-	var accnts []dto.GetAccountResponse
-	for _, ao := range accntObjs {
-		accnts = append(accnts, dto.GetAccountResponse{
-			AccountID: ao.ID,
-			Name:      ao.Name,
-			Email:     ao.Email,
-			Role:      ao.Role.Name,
-		})
-	}
-	return dto.ListAccountResponse{Accounts: accnts}
+	return dto.ListAccountResponse{Accounts: accnts, Err: err, PageInfo: pageInfo}
 }

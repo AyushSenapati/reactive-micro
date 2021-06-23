@@ -17,14 +17,22 @@ func (resp CreateAccountResponse) Failed() error {
 }
 
 type GetAccountResponse struct {
-	AccountID uint   `json:"account_id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
+	ID           uint   `json:"account_id"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	Role         string `json:"role"`
+	TotalRecords int    `json:"-"`
+}
+
+type Page struct {
+	Page         int `json:"current_page"`
+	PageSize     int `json:"page_size"`
+	TotalRecords int `json:"total_records"`
 }
 
 type ListAccountResponse struct {
 	Accounts []GetAccountResponse `json:"accounts,omitempty"`
+	PageInfo *Page                `json:"page,omitempty"`
 	Err      error                `json:"error,omitempty"`
 }
 

@@ -2,6 +2,8 @@ package repo
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -12,8 +14,8 @@ import (
 // UserRepository defines all the DB operations that the service supports
 type UserRepository interface {
 	CreateUser(ctx context.Context, name, email, hashedPswd string, role model.Role) (uint, error)
-	ListUser(ctx context.Context, qp *dto.BasicQueryParam) ([]model.User, error)
-	ListAccountsByIDs(ctx context.Context, aids []uint, qp *dto.BasicQueryParam) ([]model.User, error)
+	ListUser(ctx context.Context, qp *dto.BasicQueryParam) ([]dto.GetAccountResponse, *dto.Page, error)
+	ListAccountsByIDs(ctx context.Context, aids []uint, qp *dto.BasicQueryParam) ([]dto.GetAccountResponse, error)
 	GetUserByEmail(ctx context.Context, email string) (model.User, error)
 	GetUserByID(ctx context.Context, uid uint) (model.User, error)
 	GetRoleByName(ctx context.Context, name string) (model.Role, error)
@@ -74,21 +76,97 @@ func (b *basicUserRepo) CreateUser(ctx context.Context, name, email, hashedPswd 
 	return u.ID, err
 }
 
-func (b *basicUserRepo) ListUser(ctx context.Context, qp *dto.BasicQueryParam) (users []model.User, err error) {
-	if qp != nil {
-		err = b.db.Scopes(
-			orderBy(qp.Filter.OrederBy),
-			Paginate(qp.Paginator.Page, qp.Paginator.PageSize),
-		).Joins("Role").Find(&users).Error
-	} else {
-		err = b.db.Joins("Role").Find(&users).Error
-	}
-	return
+func queryMerger(q ...string) string {
+	return strings.Join(q, " ")
 }
 
-func (b *basicUserRepo) ListAccountsByIDs(ctx context.Context, aids []uint, qp *dto.BasicQueryParam) ([]model.User, error) {
-	var accnts []model.User
-	err := b.db.Joins("Role").Find(&accnts, aids).Error
+func orderByQry(q ...string) string {
+	return fmt.Sprintf("order by %s", strings.Join(q, ", "))
+}
+
+func paginate(page, pageSize int) (string, *dto.Page) {
+	if page == 0 {
+		page = 1
+	}
+
+	switch {
+	case pageSize > 100:
+		pageSize = 100
+	case pageSize <= 0:
+		pageSize = 10
+	}
+
+	offset := (page - 1) * pageSize
+
+	return fmt.Sprintf("offset %d limit %d", offset, pageSize), &dto.Page{Page: page}
+}
+
+func (b *basicUserRepo) ListUser(ctx context.Context, qp *dto.BasicQueryParam) ([]dto.GetAccountResponse, *dto.Page, error) {
+	var (
+		q, pageQry string
+		accnts     []dto.GetAccountResponse
+		err        error
+		pageInfo   *dto.Page
+	)
+
+	selectQry := "select u.id, u.email, u.name, r.name as role, count(u.id) over() as total_records from users u"
+	joinQry := "join roles r on r.id = u.role_id"
+
+	// if qp != nil {
+	// 	err = b.db.Scopes(
+	// 		orderBy(qp.Filter.OrederBy),
+	// 		Paginate(qp.Paginator.Page, qp.Paginator.PageSize),
+	// 	).Joins("Role").Find(&users).Error
+	// } else {
+	// 	err = b.db.Joins("Role").Find(&users).Error
+	// }
+	if qp != nil {
+		pageQry, pageInfo = paginate(qp.Paginator.Page, qp.Paginator.PageSize)
+		for i, o := range qp.Filter.OrederBy {
+			qp.Filter.OrederBy[i] = "u." + o
+		}
+
+		q = queryMerger(
+			selectQry,
+			joinQry,
+			orderByQry(qp.Filter.OrederBy...),
+			pageQry,
+		)
+	} else {
+		q = queryMerger(selectQry, joinQry)
+	}
+
+	err = b.db.Debug().Raw(q).Scan(&accnts).Error
+
+	// if records found is zero because of pagination, try filtering records with out
+	// pagination and set total records, so that client could set correct page number
+	if len(accnts) <= 0 {
+		q = queryMerger(selectQry, joinQry)
+		err = b.db.Debug().Raw(q).Scan(&accnts).Error
+		if len(accnts) > 0 {
+			pageInfo.TotalRecords = accnts[0].TotalRecords
+			accnts = []dto.GetAccountResponse{}
+		}
+	} else {
+		records := accnts[0].TotalRecords
+		pageInfo.TotalRecords = records
+		pageInfo.PageSize = len(accnts)
+	}
+
+	return accnts, pageInfo, err
+}
+
+func (b *basicUserRepo) ListAccountsByIDs(ctx context.Context, aids []uint, qp *dto.BasicQueryParam) ([]dto.GetAccountResponse, error) {
+	var accnts []dto.GetAccountResponse
+	values := []string{}
+	for _, aid := range aids {
+		values = append(values, fmt.Sprintf("(%s)", fmt.Sprint(aid)))
+	}
+	selectQry := "select u.id, u.email, u.name, r.name as role from users u"
+	joinQry := "join roles r on r.id = u.role_id"
+	filterQry := fmt.Sprintf("where u.id = any ( values %s )", strings.Join(values, ","))
+	q := queryMerger(selectQry, joinQry, filterQry)
+	err := b.db.Debug().Raw(q, values).Scan(&accnts).Error
 	return accnts, err
 }
 
