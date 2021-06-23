@@ -1,0 +1,23 @@
+{
+    "env": "test",
+    "req_id_key": "X-Request-ID",
+    "svc_name": "reactive-micro-authn-svc",
+    "nats_url": "reactive-micro-nats-main-svc:4222",
+    "authzsvc_url": "http://reactive-micro-authz-svc:8083/v1/authzsvc/policies",
+    "postgres": {
+        "host": "sample-micro-postgres-svc",
+        "port": 5432,
+        "user": "postgres",
+        "password": "postgres",
+        "db": "authn",
+        "sslmode": "disable"
+    },
+    "redis": {
+        "addr": "reactive-micro-redis-svc:6379",
+        "password": "",
+        "db": 10
+    },
+    "auth": {
+        "secret_key": "topscretkey"
+    }
+}

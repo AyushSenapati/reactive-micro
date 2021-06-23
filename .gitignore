@@ -18,3 +18,5 @@ vendor/
 *.bak
 *.old
 
+# Dont't include container data directories
+container_data/

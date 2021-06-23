@@ -1,0 +1,15 @@
+{
+    "env": "test",
+    "req_id_key": "X-Request-ID",
+    "svc_name": "reactive-micro-authz-svc",
+    "mongo_uri": "mongodb://sample-micro-mongo-svc:27017/authzdb?w=majority",
+    "nats_url": "reactive-micro-nats-main-svc:4222",
+    "redis": {
+        "addr": "reactive-micro-redis-svc:6379",
+        "password": "",
+        "db": 12
+    },
+    "auth": {
+        "secret_key": "topscretkey"
+    }
+}
