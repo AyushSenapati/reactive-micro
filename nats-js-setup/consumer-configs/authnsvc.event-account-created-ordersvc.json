@@ -1,0 +1,12 @@
+{
+    "durable_name": "event-account-created-ordersvc",
+    "deliver_subject": "authnsvc.EventAccountCreated.ordersvc",
+    "deliver_policy": "new",
+    "ack_policy": "explicit",
+    "ack_wait": 30000000000,
+    "max_deliver": 10,
+    "filter_subject": "authnsvc.EventAccountCreated",
+    "replay_policy": "instant",
+    "sample_freq": "100",
+    "max_ack_pending": 2
+}

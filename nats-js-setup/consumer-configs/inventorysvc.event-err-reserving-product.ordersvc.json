@@ -1,0 +1,12 @@
+{
+    "durable_name": "event-err-reserving-product-ordersvc",
+    "deliver_subject": "inventorysvc.EventErrReservingProduct.ordersvc",
+    "deliver_policy": "new",
+    "ack_policy": "explicit",
+    "ack_wait": 30000000000,
+    "max_deliver": 10,
+    "filter_subject": "inventorysvc.EventErrReservingProduct",
+    "replay_policy": "instant",
+    "sample_freq": "100",
+    "max_ack_pending": 2
+}

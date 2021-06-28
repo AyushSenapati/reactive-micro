@@ -1,0 +1,12 @@
+{
+    "durable_name": "event-policy-updated-inventorysvc",
+    "deliver_subject": "authzsvc.EventPolicyUpdated.inventorysvc",
+    "deliver_policy": "new",
+    "ack_policy": "explicit",
+    "ack_wait": 30000000000,
+    "max_deliver": 10,
+    "filter_subject": "authzsvc.EventPolicyUpdated",
+    "replay_policy": "instant",
+    "sample_freq": "100",
+    "max_ack_pending": 2
+}

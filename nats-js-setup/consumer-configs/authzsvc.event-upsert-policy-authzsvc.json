@@ -1,0 +1,12 @@
+{
+    "durable_name": "event-upsert-policy-authzsvc",
+    "deliver_subject": "authzsvc.EventUpsertPolicy.authzsvc",
+    "deliver_policy": "new",
+    "ack_policy": "explicit",
+    "ack_wait": 30000000000,
+    "max_deliver": 10,
+    "filter_subject": "authzsvc.EventUpsertPolicy",
+    "replay_policy": "instant",
+    "sample_freq": "100",
+    "max_ack_pending": 2
+}

@@ -1,0 +1,12 @@
+{
+    "durable_name": "event-payment-ordersvc",
+    "deliver_subject": "paymentsvc.EventPayment.ordersvc",
+    "deliver_policy": "new",
+    "ack_policy": "explicit",
+    "ack_wait": 30000000000,
+    "max_deliver": 10,
+    "filter_subject": "paymentsvc.EventPayment",
+    "replay_policy": "instant",
+    "sample_freq": "100",
+    "max_ack_pending": 2
+}

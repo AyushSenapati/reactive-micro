@@ -1,0 +1,12 @@
+{
+    "durable_name": "event-product-reserved-paymentsvc",
+    "deliver_subject": "inventorysvc.EventProductReserved.paymentsvc",
+    "deliver_policy": "new",
+    "ack_policy": "explicit",
+    "ack_wait": 30000000000,
+    "max_deliver": 10,
+    "filter_subject": "inventorysvc.EventProductReserved",
+    "replay_policy": "instant",
+    "sample_freq": "100",
+    "max_ack_pending": 2
+}

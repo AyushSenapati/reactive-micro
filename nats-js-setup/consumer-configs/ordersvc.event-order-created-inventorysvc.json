@@ -1,0 +1,12 @@
+{
+    "durable_name": "event-order-created-inventorysvc",
+    "deliver_subject": "ordersvc.EventOrderCreated.inventorysvc",
+    "deliver_policy": "new",
+    "ack_policy": "explicit",
+    "ack_wait": 30000000000,
+    "max_deliver": 10,
+    "filter_subject": "ordersvc.EventOrderCreated",
+    "replay_policy": "instant",
+    "sample_freq": "100",
+    "max_ack_pending": 2
+}

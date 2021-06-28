@@ -1,0 +1,5 @@
+the file names follow a specific format, i.e.
+{stream}.{consumer_durable_name}.{file_extension}
+
+NOTE:
+    `consumer_durable_name` can't contain character dot in its name
