@@ -1,0 +1,133 @@
+{
+    "event-account-created": {
+        "description": "fired when an account is created successfully",
+        "fields": [
+            {"name": "accnt_id", "dtype": "int"},
+            {"name": "role", "dtype": "string"}
+        ],
+        "producers": ["authnsvc"],
+        "subscribers": ["ordersvc", "inventorysvc", "paymentsvc"]
+    },
+    "event-account-deleted": {
+        "description": "fired when an account is deleted. subscribers can use this information to clean up their resources associated with this account",
+        "fields": [
+            {"name": "accnt_id", "dtype": "int"}
+        ],
+        "producers": ["authnsvc"],
+        "subscribers": ["authzsvc"]
+    },
+    "event-account-authenticated": {
+        "description": "fired on successful authentication of an account. Can be used to improve performance of the system by preparing cache even before the actual authenticated request comes in",
+        "fields": [
+            {"name": "accnt_id", "dtype": "int"}
+        ],
+        "producers": ["authnsvc"],
+        "subscribers": ["authzsvc"]
+    },
+    "event-upsert-policy": {
+        "description": "fired to create/update new/existing authorization policy. A service can use this event to create/update an policy when a resource is created/updated",
+        "fields": [
+            {"name": "subject", "dtype": "string", "hint": "who can perform"},
+            {"name": "resource_type", "dtype": "string", "hint": "on whom"},
+            {"name": "resource_id", "dtype": "string", "hint": "on whom"},
+            {"name": "action", "dtype": "string", "hint": "what can be performed"}
+        ],
+        "producers": ["authnsvc", "ordersvc", "inventorysvc", "paymentsvc"],
+        "receiver": ["authzsvc"]
+    },
+    "event-policy-updated": {
+        "description": "fired when an authorization policy changes for a subject. This can be used by all the services to update their local authz cache",
+        "fields": [
+            {"name": "method", "dtype": "string", "hint": "can be put/delete"},
+            {"name": "subject", "dtype": "string", "hint": "who can perform"},
+            {"name": "resource_type", "dtype": "string", "hint": "on whom"},
+            {"name": "resource_id", "dtype": "string", "hint": "on whom"},
+            {"name": "action", "dtype": "string", "hint": "what can be performed"}
+        ],
+        "producers": ["authzsvc"],
+        "subscribers": ["authnsvc", "ordersvc", "inventorysvc", "paymentsvc"]
+    },
+    "event-remove-policy": {
+        "description": "can be fired to remove an authorization policy. A service can use this event to remove policies associated with the resources on resource deletion",
+        "fields": [
+            {"name": "subject", "dtype": "string", "hint": "who can perform"},
+            {"name": "resource_type", "dtype": "string", "hint": "on whom"},
+            {"name": "resource_id", "dtype": "string", "hint": "on whom"},
+            {"name": "action", "dtype": "string", "hint": "what can be performed"}
+        ],
+        "producers": ["authnsvc", "ordersvc", "inventorysvc", "paymentsvc"],
+        "subscribers": ["authzsvc"]
+    },
+    "event-order-created": {
+        "description": "ordersvc fires this event when an order is created. The svc itself does not check the validity of the product details.",
+        "fields": [
+            {"name": "order_id", "dtype": "uuid"},
+            {"name": "order_status", "dtype": "string"},
+            {"name": "account_id", "dtype": "int"},
+            {"name": "product_id", "dtype": "uuid"},
+            {"name": "quantity", "dtype": "int"}
+        ],
+        "producers": ["ordersvc"],
+        "subscribers": ["inventorysvc"]
+    },
+    "event-order-canceled":{
+        "description": "ordersvc fires this event when an order is canceled may be due to payment failure or user cancels the order. services can consume this event to revert their order specific changes",
+        "fields": [
+            {"name": "order_id", "dtype": "uuid"},
+            {"name": "account_id", "dtype": "int"}
+        ],
+        "producers": ["ordersvc"],
+        "subscribers": ["inventorysvc"]
+    },
+    "event-order-approved":{
+        "description": "ordersvc fires this event when an order is placed successfully and ready for shipment",
+        "fields": [
+            {"name": "order_id", "dtype": "uuid"},
+            {"name": "account_id", "dtype": "int"}
+        ],
+        "producers": ["ordersvc"],
+        "subscribers": []
+    },
+    "event-product-reserved":{
+        "description": "inventorysvc checks the validity of the event-order-created and tries to reserved requested product. on success it fires this event",
+        "fields": [
+            {"name": "order_id", "dtype": "uuid"},
+            {"name": "account_id", "dtype": "int"},
+            {"name": "payble", "dtype": "float"}
+        ],
+        "producers": ["inventorysvc"],
+        "subscribers": ["ordersvc", "paymentsvc"]
+    },
+    "event-err-reserving-product":{
+        "description": "if inventory service fails to reserve requested product for the user, this event is fired",
+        "fields": [
+            {"name": "order_id", "dtype": "uuid"}
+        ],
+        "producers": ["inventorysvc"],
+        "subscribers": ["ordersvc"]
+    },
+    "event-payment":{
+        "description": "upon receiving event-product-reserved payment service tries to deduct the payble from the user account. this event is fired to indicate payment success/failure",
+        "fields": [
+            {"name": "order_id", "dtype": "uuid"},
+            {"name": "account_id", "dtype": "int"},
+            {"name": "status", "dtype": "string", "hint":"can be payment_successful/payment_failed"}
+        ],
+        "producers": ["paymentsvc"],
+        "subscribers": ["ordersvc"]
+    },
+    "event-suspicious-activity":{
+        "description": "can be fired by any of the services to indicate unusual activity for further investigation",
+        "fields": [
+            {"name": "request_id", "dtype": "uuid"},
+            {"name": "account_id", "dtype": "int"},
+            {"name": "resource_type", "dtype": "string"},
+            {"name": "resource_id", "dtype": "string"},
+            {"name": "action", "dtype": "string"},
+            {"name": "reason", "dtype": "string"},
+            {"name": "severity", "dtype": "string"}
+        ],
+        "producers": [],
+        "subscribers": []
+    }
+}
