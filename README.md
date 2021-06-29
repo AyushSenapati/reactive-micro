@@ -24,7 +24,7 @@ On policy update, authzsvc fires event-policy-updated and the local authz librar
 Benefits of this authorization architecture is, every time a request comes in, services do not need to query the database and join multiple tables which might even scattered across different services to determine if the request is authorized. instead using the pre generated policies authz middlewares can decide whether to allow/deny the request with out even sending it to the service layer.
 
 ## Events
-Followings are the events supported by these microservices. For more on these events check [events.json](events.json) file.
+Followings are the events supported by these microservices.
 |Name|Description|
 |------|-----------|
 |`event-account-created`|fired when an account is created successfully|
@@ -41,5 +41,7 @@ Followings are the events supported by these microservices. For more on these ev
 |`event-payment`|upon receiving event-product-reserved payment service tries to deduct the payble from the user account. this event is fired to indicate payment success/failure|
 |`event-suspicious-activity`|can be fired by any of the services to indicate unusual activity for further investigation|
 
+For more information on these events check [events.json](events.json) file.  
+Check [nats-js-setup/](nats-js-setup/README.md) to see how to configure NATS Jetstream in order to produce or consume events.
 ## License:
 [MIT Licence](LICENSE)
